@@ -20,11 +20,13 @@ git push -u origin main
 1. Go to [vercel.com](https://vercel.com) and sign in (use GitHub).
 2. Click **Add New** → **Project**.
 3. Import your GitHub repo (`ynab-automation` or your repo name).
-4. Before deploying, add **Environment Variables**:
-   - `YNAB_ACCESS_TOKEN` – Your YNAB Personal Access Token
-   - `YNAB_BUDGET_ID` – Your budget ID (e.g. from `get_ynab_ids.py`)
-   - `YNAB_ACCOUNT_ID` – Your account ID (e.g. [MBNA] Amazon.ca Rewards)
+4. Before deploying, add **Environment Variables** (required):
+   - `YNAB_ACCESS_TOKEN` – YNAB → Settings → Developer Settings → Personal Access Token (create/regenerate)
+   - `YNAB_BUDGET_ID` – Run `python get_ynab_ids.py` locally; copy the Budget ID
+   - `YNAB_ACCOUNT_ID` – Same script; copy the Account ID (e.g. [MBNA] Amazon.ca Rewards)
    - Optional: `YNAB_DUPLICATE_DAYS` – Days tolerance for duplicate check (default 5)
+
+   **Important:** After adding/updating env vars, trigger a redeploy so the app picks them up.
 5. Click **Deploy**.
 
 ## 3. Use the app
