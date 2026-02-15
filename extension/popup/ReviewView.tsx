@@ -1,5 +1,6 @@
-import React, { useRef, useState } from "react";
-import type { CsvRow } from "@lib/types";
+import React, { useEffect, useRef, useState } from "react";
+import { getCategories, saveLearnedMapping } from "@lib/storage";
+import type { CsvRow, YnabCategory } from "@lib/types";
 
 interface Props {
   orders: CsvRow[];
@@ -9,7 +10,23 @@ interface Props {
 export function ReviewView({ orders, setOrders }: Props) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [loading, setLoading] = useState(false);
+  const [categorizing, setCategorizing] = useState(false);
   const [status, setStatus] = useState<{ type: "success" | "error" | "info"; text: string } | null>(null);
+  const [categories, setCategories] = useState<YnabCategory[]>([]);
+
+  // Load cached categories for the dropdown
+  useEffect(() => {
+    getCategories().then((cats) => {
+      if (cats.length > 0) {
+        setCategories(cats);
+      } else {
+        // Try syncing from YNAB
+        chrome.runtime.sendMessage({ type: "SYNC_CATEGORIES" }).then((res) => {
+          if (res.categories) setCategories(res.categories);
+        }).catch(() => {});
+      }
+    });
+  }, []);
 
   const handleScrape = async () => {
     setLoading(true);
@@ -50,7 +67,50 @@ export function ReviewView({ orders, setOrders }: Props) {
       setStatus({ type: "error", text: "Failed to parse CSV" });
     } finally {
       setLoading(false);
+      // Reset file input so the same file can be re-uploaded
+      if (fileInputRef.current) fileInputRef.current.value = "";
     }
+  };
+
+  const handleCategorize = async () => {
+    setCategorizing(true);
+    setStatus(null);
+    try {
+      const response = await chrome.runtime.sendMessage({
+        type: "CATEGORIZE",
+        payload: orders,
+      });
+      if (response.error) {
+        setStatus({ type: "error", text: response.error });
+      } else if (response.orders) {
+        setOrders(response.orders);
+        const changed = response.orders.filter(
+          (o: CsvRow, i: number) => o.Category !== orders[i]?.Category
+        ).length;
+        setStatus({ type: "success", text: `Categorized ${changed} items` });
+      }
+    } catch {
+      setStatus({ type: "error", text: "Categorization failed" });
+    } finally {
+      setCategorizing(false);
+    }
+  };
+
+  const handleCategoryChange = async (index: number, newCategory: string) => {
+    const updated = [...orders];
+    const old = updated[index];
+    updated[index] = { ...old, Category: newCategory };
+    setOrders(updated);
+
+    // Learn this mapping for future use (first 60 chars of memo)
+    const key = old.Memo.slice(0, 60).toLowerCase();
+    if (key && newCategory !== "Uncategorized") {
+      await saveLearnedMapping(key, newCategory);
+    }
+  };
+
+  const handleRemoveRow = (index: number) => {
+    setOrders(orders.filter((_, i) => i !== index));
   };
 
   const handleImport = async () => {
@@ -65,10 +125,10 @@ export function ReviewView({ orders, setOrders }: Props) {
         setStatus({ type: "error", text: response.error });
       } else {
         const r = response.result;
-        setStatus({
-          type: "success",
-          text: `Imported ${r.imported} | ${r.skippedDuplicates} dupes skipped`,
-        });
+        const parts = [`Imported ${r.imported}`];
+        if (r.skippedDuplicates > 0) parts.push(`${r.skippedDuplicates} dupes skipped`);
+        if (r.apiDuplicates > 0) parts.push(`${r.apiDuplicates} API dupes`);
+        setStatus({ type: "success", text: parts.join(" | ") });
         if (r.imported > 0) setOrders([]);
       }
     } catch {
@@ -83,12 +143,21 @@ export function ReviewView({ orders, setOrders }: Props) {
     return amount < 0 ? `-$${formatted}` : `$${formatted}`;
   };
 
+  const uncategorizedCount = orders.filter(
+    (o) => !o.Category || o.Category === "Uncategorized"
+  ).length;
+
+  // Build category options: unique names from YNAB categories
+  const categoryOptions = categories.length > 0
+    ? [...new Set(categories.map((c) => c.name))].sort()
+    : [...new Set(orders.map((o) => o.Category).filter(Boolean))].sort();
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       {/* Actions row */}
-      <div style={{ display: "flex", gap: 8 }}>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
         <button className="btn btn-primary" onClick={handleScrape} disabled={loading}>
-          {loading ? <span className="spinner" /> : "Scrape Page"}
+          {loading && !categorizing ? <span className="spinner" /> : "Scrape Page"}
         </button>
         <button
           className="btn btn-secondary"
@@ -97,6 +166,16 @@ export function ReviewView({ orders, setOrders }: Props) {
         >
           Upload CSV
         </button>
+        {orders.length > 0 && (
+          <button
+            className="btn btn-secondary"
+            onClick={handleCategorize}
+            disabled={categorizing || loading}
+            title="Re-categorize using AI (if configured) or keyword rules"
+          >
+            {categorizing ? <span className="spinner" /> : "Categorize"}
+          </button>
+        )}
         <input
           ref={fileInputRef}
           type="file"
@@ -109,6 +188,13 @@ export function ReviewView({ orders, setOrders }: Props) {
       {/* Status */}
       {status && (
         <div className={`status-badge ${status.type}`}>{status.text}</div>
+      )}
+
+      {/* Uncategorized warning */}
+      {uncategorizedCount > 0 && orders.length > 0 && (
+        <div className="status-badge warning">
+          {uncategorizedCount} item{uncategorizedCount !== 1 ? "s" : ""} uncategorized
+        </div>
       )}
 
       {/* Order list or empty state */}
@@ -127,20 +213,64 @@ export function ReviewView({ orders, setOrders }: Props) {
                   <th>Item</th>
                   <th>Amount</th>
                   <th>Category</th>
+                  <th></th>
                 </tr>
               </thead>
               <tbody>
                 {orders.map((o, i) => (
                   <tr key={i}>
-                    <td style={{ whiteSpace: "nowrap" }}>{o.Date}</td>
-                    <td style={{ maxWidth: 140, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={o.Memo}>
+                    <td style={{ whiteSpace: "nowrap", fontSize: 11 }}>{o.Date}</td>
+                    <td
+                      style={{ maxWidth: 120, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+                      title={o.Memo}
+                    >
                       {o.Memo}
                     </td>
-                    <td className={o.Amount < 0 ? "amount-negative" : "amount-positive"}>
+                    <td className={o.Amount < 0 ? "amount-negative" : "amount-positive"} style={{ whiteSpace: "nowrap" }}>
                       {formatAmount(o.Amount)}
                     </td>
-                    <td className={o.Category === "Uncategorized" ? "category-uncategorized" : ""}>
-                      {o.Category || "Uncategorized"}
+                    <td>
+                      {categoryOptions.length > 0 ? (
+                        <select
+                          value={o.Category || "Uncategorized"}
+                          onChange={(e) => handleCategoryChange(i, e.target.value)}
+                          className={o.Category === "Uncategorized" || !o.Category ? "category-uncategorized" : ""}
+                          style={{
+                            background: "#1e293b",
+                            color: (!o.Category || o.Category === "Uncategorized") ? "#fbbf24" : "#e2e8f0",
+                            border: "1px solid #334155",
+                            borderRadius: 4,
+                            padding: "2px 4px",
+                            fontSize: 11,
+                            maxWidth: 120,
+                          }}
+                        >
+                          <option value="Uncategorized">Uncategorized</option>
+                          {categoryOptions.map((cat) => (
+                            <option key={cat} value={cat}>{cat}</option>
+                          ))}
+                        </select>
+                      ) : (
+                        <span className={o.Category === "Uncategorized" ? "category-uncategorized" : ""}>
+                          {o.Category || "Uncategorized"}
+                        </span>
+                      )}
+                    </td>
+                    <td>
+                      <button
+                        onClick={() => handleRemoveRow(i)}
+                        title="Remove"
+                        style={{
+                          background: "none",
+                          border: "none",
+                          color: "#64748b",
+                          cursor: "pointer",
+                          fontSize: 14,
+                          padding: "0 4px",
+                        }}
+                      >
+                        x
+                      </button>
                     </td>
                   </tr>
                 ))}
@@ -153,7 +283,7 @@ export function ReviewView({ orders, setOrders }: Props) {
             onClick={handleImport}
             disabled={loading || orders.length === 0}
           >
-            {loading ? <span className="spinner" /> : `Import ${orders.length} to YNAB`}
+            {loading && !categorizing ? <span className="spinner" /> : `Import ${orders.length} to YNAB`}
           </button>
         </>
       )}
