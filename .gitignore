@@ -11,3 +11,7 @@ venv/
 out/
 node_modules/
 .vercel
+
+# Chrome Extension
+extension/build/
+extension/node_modules/
