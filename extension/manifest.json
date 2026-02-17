@@ -1,0 +1,47 @@
+{
+  "manifest_version": 3,
+  "name": "YNAB Amazon Importer",
+  "version": "0.1.0",
+  "description": "Import Amazon orders into YNAB with automatic categorization",
+  "permissions": [
+    "storage",
+    "activeTab"
+  ],
+  "host_permissions": [
+    "https://api.ynab.com/*",
+    "https://api.anthropic.com/*",
+    "https://www.amazon.ca/*",
+    "https://www.amazon.com/*"
+  ],
+  "action": {
+    "default_popup": "popup/index.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "background": {
+    "service_worker": "background/service-worker.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.amazon.ca/gp/your-account/order-history*",
+        "https://www.amazon.ca/your-orders/*",
+        "https://www.amazon.com/gp/your-account/order-history*",
+        "https://www.amazon.com/your-orders/*"
+      ],
+      "js": ["content/amazon-scraper.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "options_page": "options/index.html"
+}
