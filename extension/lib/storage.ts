@@ -13,7 +13,6 @@ const DEFAULT_SETTINGS: ExtensionSettings = {
   budgetName: "",
   accountId: "",
   accountName: "",
-  anthropicKey: "",
   defaultPayee: "Amazon.ca",
   amazonDomain: "amazon.ca",
   duplicateDaysTolerance: 5,
