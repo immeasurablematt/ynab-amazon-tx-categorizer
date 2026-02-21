@@ -9,7 +9,7 @@
   ],
   "host_permissions": [
     "https://api.ynab.com/*",
-    "https://api.anthropic.com/*",
+    "https://ynab-automation.vercel.app/*",
     "https://www.amazon.ca/*",
     "https://www.amazon.com/*"
   ],
