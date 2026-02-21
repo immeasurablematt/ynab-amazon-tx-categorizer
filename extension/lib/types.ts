@@ -17,7 +17,6 @@ export interface ExtensionSettings {
   budgetName: string;
   accountId: string;
   accountName: string;
-  anthropicKey: string;
   defaultPayee: string;
   amazonDomain: "amazon.ca" | "amazon.com";
   duplicateDaysTolerance: number;
