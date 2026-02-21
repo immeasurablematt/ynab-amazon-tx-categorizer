@@ -150,15 +150,8 @@ async function handleCategorize(
 ): Promise<{ orders?: CsvRow[]; error?: string }> {
   try {
     const settings = await getSettings();
-
-    let categorized: CsvRow[];
-    if (settings.anthropicKey) {
-      const categories = await fetchCategories(settings.ynabToken, settings.budgetId);
-      categorized = await categorizeWithAI(rows, categories, settings.anthropicKey);
-    } else {
-      categorized = await categorizeAllByKeywords(rows);
-    }
-
+    const categories = await fetchCategories(settings.ynabToken, settings.budgetId);
+    const categorized = await categorizeWithAI(rows, categories);
     await savePendingOrders(categorized);
     return { orders: categorized };
   } catch (e) {
