@@ -62,20 +62,6 @@ export function Options() {
       </section>
 
       <section style={{ marginBottom: 24 }}>
-        <h2 style={{ fontSize: 15, color: "#94a3b8", marginBottom: 12 }}>AI Categorization (Optional)</h2>
-        <label style={{ fontSize: 12, color: "#94a3b8" }}>
-          Anthropic API Key
-          <input
-            type="password"
-            value={settings.anthropicKey}
-            onChange={(e) => update({ anthropicKey: e.target.value })}
-            placeholder="sk-ant-... (leave blank to use keyword rules only)"
-            style={inputStyle}
-          />
-        </label>
-      </section>
-
-      <section style={{ marginBottom: 24 }}>
         <h2 style={{ fontSize: 15, color: "#94a3b8", marginBottom: 12 }}>Preferences</h2>
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           <label style={{ fontSize: 12, color: "#94a3b8" }}>
