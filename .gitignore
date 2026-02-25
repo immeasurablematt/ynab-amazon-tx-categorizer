@@ -15,3 +15,6 @@ node_modules/
 # Chrome Extension
 extension/build/
 extension/node_modules/
+.DS_Store
+.worktrees/
+.githooks/
