@@ -2,7 +2,7 @@
  * Browser-compatible YNAB API client using fetch().
  * Replaces the Node.js `ynab` SDK which doesn't work in extension context.
  */
-import type { YnabBudget, YnabAccount, YnabCategory, CsvRow, ImportResult } from "./types";
+import type { YnabBudget, YnabAccount, YnabCategory, YnabTransaction, CsvRow, ImportResult } from "./types";
 
 const BASE = "https://api.ynab.com/v1";
 
@@ -117,6 +117,80 @@ export async function fetchTransactionsSince(
   }
 
   return all;
+}
+
+// ── Match & Categorize endpoints ──
+
+/**
+ * Fetch uncategorized transactions from a YNAB account where the payee
+ * looks like Amazon. Filters client-side since the YNAB API doesn't
+ * support server-side payee or category filtering.
+ */
+export async function fetchUncategorizedAmazonTransactions(
+  token: string,
+  budgetId: string,
+  accountId: string,
+  sinceDate: string
+): Promise<YnabTransaction[]> {
+  const data = await ynabFetch<{
+    data: {
+      transactions: {
+        id: string;
+        date: string;
+        amount: number;
+        payee_name: string | null;
+        category_id: string | null;
+        category_name: string | null;
+        memo: string | null;
+        deleted: boolean;
+      }[];
+    };
+  }>(token, `/budgets/${budgetId}/accounts/${accountId}/transactions?since_date=${sinceDate}`);
+
+  const amazonPattern = /amazon|amzn/i;
+
+  return data.data.transactions
+    .filter((tx) => {
+      if (tx.deleted) return false;
+      if (tx.category_id) return false; // already categorized
+      const payee = tx.payee_name ?? "";
+      return amazonPattern.test(payee);
+    })
+    .map((tx) => ({
+      id: tx.id,
+      date: tx.date,
+      amount: tx.amount,
+      payee_name: tx.payee_name ?? "Amazon",
+      category_id: tx.category_id,
+      category_name: tx.category_name,
+      memo: tx.memo,
+    }));
+}
+
+/**
+ * Bulk-update categories on existing YNAB transactions.
+ * Uses PATCH /budgets/{id}/transactions (supports batch updates).
+ */
+export async function updateTransactionCategories(
+  token: string,
+  budgetId: string,
+  updates: { id: string; category_id: string }[]
+): Promise<{ updated: number }> {
+  if (updates.length === 0) return { updated: 0 };
+
+  const data = await ynabFetch<{
+    data: { transactions?: unknown[] };
+  }>(token, `/budgets/${budgetId}/transactions`, {
+    method: "PATCH",
+    body: JSON.stringify({
+      transactions: updates.map((u) => ({
+        id: u.id,
+        category_id: u.category_id,
+      })),
+    }),
+  });
+
+  return { updated: data.data.transactions?.length ?? 0 };
 }
 
 // ── Transaction types for the YNAB API ──

@@ -222,6 +222,112 @@ body {
   font-size: 12px;
 }
 
+/* ── Tab bar ── */
+.tab-bar {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid #1e293b;
+  margin-bottom: 4px;
+}
+
+.tab-btn {
+  flex: 1;
+  padding: 8px 12px;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.tab-btn:hover {
+  color: #94a3b8;
+}
+
+.tab-btn.active {
+  color: #e2e8f0;
+  border-bottom-color: #2563eb;
+}
+
+/* ── Match table ── */
+.match-table th:first-child,
+.match-table td:first-child {
+  width: 28px;
+  text-align: center;
+}
+
+.match-table input[type="checkbox"] {
+  accent-color: #2563eb;
+}
+
+.row-ambiguous {
+  background: rgba(251, 191, 36, 0.08);
+}
+
+.row-ambiguous:hover {
+  background: rgba(251, 191, 36, 0.14);
+}
+
+/* ── Confidence badges ── */
+.confidence-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.confidence-high {
+  background: #064e3b;
+  color: #6ee7b7;
+}
+
+.confidence-medium {
+  background: #78350f;
+  color: #fcd34d;
+}
+
+.confidence-ambiguous {
+  background: #7c2d12;
+  color: #fdba74;
+}
+
+/* ── Unmatched sections ── */
+.unmatched-section {
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.unmatched-section summary {
+  cursor: pointer;
+  padding: 4px 0;
+  color: #64748b;
+  font-size: 11px;
+}
+
+.unmatched-section summary:hover {
+  color: #94a3b8;
+}
+
+.unmatched-row {
+  display: flex;
+  gap: 8px;
+  padding: 3px 0;
+  font-size: 11px;
+  color: #94a3b8;
+  border-bottom: 1px solid #1e293b;
+}
+
+.unmatched-row.dimmed {
+  opacity: 0.5;
+}
+
 /* ── Spinner ── */
 .spinner {
   display: inline-block;

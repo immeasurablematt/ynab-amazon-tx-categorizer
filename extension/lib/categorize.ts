@@ -1,11 +1,12 @@
 /**
- * Categorization engine: keyword-based + optional AI (Anthropic Claude).
- * Ported from lib/normalize.ts (keywords) and amazon_csv_to_ynab.py (AI).
+ * Categorization engine: keyword-based + AI via server-side proxy.
+ * AI calls go through the Vercel API (no API keys in the browser).
  */
 import type { CsvRow, CategoryRule, YnabCategory } from "./types";
 import { getCategoryRules, getLearnedMappings } from "./storage";
 
 const DEFAULT_CATEGORY = "Uncategorized";
+const CATEGORIZE_API = "https://ynab-automation.vercel.app/api/categorize";
 
 // ── Keyword categorization ──
 
@@ -52,157 +53,65 @@ export async function categorizeAllByKeywords(rows: CsvRow[]): Promise<CsvRow[]>
   );
 }
 
-// ── AI categorization (Anthropic Claude) ──
-
-const BATCH_SIZE = 25;
+// ── AI categorization (via server-side proxy) ──
 
 /**
- * Categorize items using Claude AI.
- * Requires an Anthropic API key. Falls back to keyword categorization if unavailable.
+ * Categorize items using AI via the Vercel API proxy.
+ * Falls back to keyword categorization if the API is unavailable.
  */
 export async function categorizeWithAI(
   rows: CsvRow[],
-  categories: YnabCategory[],
-  anthropicKey: string
+  categories: YnabCategory[]
 ): Promise<CsvRow[]> {
-  if (!anthropicKey) {
-    return categorizeAllByKeywords(rows);
-  }
-
   const categoryNames = categories.map((c) => c.name);
   const result = [...rows];
 
-  // Process in batches to stay within token limits
-  for (let i = 0; i < result.length; i += BATCH_SIZE) {
-    const batch = result.slice(i, i + BATCH_SIZE);
-    const uncategorized = batch.filter(
-      (r) => !r.Category || r.Category === DEFAULT_CATEGORY
-    );
-
-    if (uncategorized.length === 0) continue;
-
-    try {
-      const mappings = await callAnthropicAPI(uncategorized, categoryNames, anthropicKey);
-
-      // Apply AI results
-      let batchIdx = 0;
-      for (let j = i; j < Math.min(i + BATCH_SIZE, result.length); j++) {
-        if (!result[j].Category || result[j].Category === DEFAULT_CATEGORY) {
-          const aiCategory = mappings[batchIdx];
-          if (aiCategory) {
-            result[j] = {
-              ...result[j],
-              Category: resolveCategory(aiCategory, categoryNames),
-            };
-          }
-          batchIdx++;
-        }
-      }
-    } catch (e) {
-      console.warn("AI categorization batch failed, falling back to keywords:", e);
-      // Fall back to keyword categorization for this batch
-      for (let j = i; j < Math.min(i + BATCH_SIZE, result.length); j++) {
-        if (!result[j].Category || result[j].Category === DEFAULT_CATEGORY) {
-          result[j] = {
-            ...result[j],
-            Category: await categorizeByKeywords(result[j].Memo),
-          };
-        }
-      }
+  // Collect uncategorized items with their original indices
+  const uncategorized: { resultIndex: number; memo: string }[] = [];
+  for (let i = 0; i < result.length; i++) {
+    if (!result[i].Category || result[i].Category === DEFAULT_CATEGORY) {
+      uncategorized.push({ resultIndex: i, memo: result[i].Memo });
     }
   }
 
-  return result;
-}
+  if (uncategorized.length === 0) return result;
 
-/**
- * Call Anthropic Messages API directly via fetch().
- * Returns: { [itemIndex]: categoryName }
- */
-async function callAnthropicAPI(
-  items: CsvRow[],
-  categoryNames: string[],
-  apiKey: string
-): Promise<Record<number, string>> {
-  const categoryList = categoryNames.map((c) => `- ${c}`).join("\n");
+  try {
+    const res = await fetch(CATEGORIZE_API, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        items: uncategorized.map((u, i) => ({ index: i, memo: u.memo })),
+        categories: categoryNames,
+      }),
+    });
 
-  let itemsText = "";
-  for (let i = 0; i < items.length; i++) {
-    itemsText += `${i}. ${items[i].Memo.slice(0, 300)}\n`;
+    if (!res.ok) {
+      throw new Error(`API error ${res.status}`);
+    }
+
+    const data = (await res.json()) as { mappings: Record<number, string> };
+
+    for (let i = 0; i < uncategorized.length; i++) {
+      const aiCategory = data.mappings[i];
+      if (aiCategory) {
+        const idx = uncategorized[i].resultIndex;
+        result[idx] = {
+          ...result[idx],
+          Category: resolveCategory(aiCategory, categoryNames),
+        };
+      }
+    }
+  } catch (e) {
+    console.warn("AI categorization failed, falling back to keywords:", e);
+    for (const u of uncategorized) {
+      result[u.resultIndex] = {
+        ...result[u.resultIndex],
+        Category: await categorizeByKeywords(result[u.resultIndex].Memo),
+      };
+    }
   }
 
-  const prompt = `You are a budget categorization assistant. For each Amazon purchase below, determine the most appropriate budget category based on what the product actually is.
-
-AVAILABLE CATEGORIES:
-${categoryList}
-
-ITEMS TO CATEGORIZE:
-${itemsText}
-
-INSTRUCTIONS:
-1. Understand what each product actually is (not just keyword matching)
-2. Consider the context:
-   - Kids clothing, toys, books for children → "Kids Supplies"
-   - Adult clothing, shoes, accessories → "Wardrobe"
-   - Movie rentals, streaming → "Family Fun & Dates" or "Subscriptions (Monthly)" for recurring
-   - Health supplements, vitamins for adults → "Medicine & Vitamins"
-   - Books for personal reading (adult fiction/non-fiction) → owner's Fun Money category or appropriate
-   - Light fixtures, sconces, bulbs → "Light Fixtures" if available, else "Home Maintenance & Decor"
-   - Coffee tables, ottomans → "Coffee Table & Side Tables" if available, else "Home Maintenance & Decor"
-   - Cleaning supplies, kitchenware, tools → "Home Maintenance & Decor"
-   - Subscription services (Apple TV+, Prime Video ad-free, media apps) → "Subscriptions (Monthly)"
-   - Gift cards → "Gifts & Giving"
-   - Spiritual/Buddhist books → "Retreats"
-   - Tech gadgets (chargers, mice, electronics for personal use) → owner's Fun Money or appropriate
-   - UGG slippers, shoes, footwear → "Wardrobe"
-   - Beverages, water enhancers, drink mixes → "Groceries"
-   - Mixed orders (book + kids product) → pick the category of the higher-value item
-3. For mixed orders (multiple items), pick the category of the highest-value or primary item
-4. If truly uncertain, use "Uncategorized"
-
-Return ONLY a JSON object mapping item index to category name.
-CRITICAL: You MUST use the EXACT category name from the list above, including any emojis.
-Example:
-{"0": "Kids Supplies", "1": "Wardrobe", "2": "Groceries"}
-
-JSON response:`;
-
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01",
-      "anthropic-dangerous-direct-browser-access": "true",
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: "claude-sonnet-4-20250514",
-      max_tokens: 4096,
-      messages: [{ role: "user", content: prompt }],
-    }),
-  });
-
-  if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`Anthropic API error ${res.status}: ${body}`);
-  }
-
-  const data = (await res.json()) as {
-    content: { type: string; text: string }[];
-  };
-
-  let responseText = data.content[0]?.text?.trim() ?? "{}";
-
-  // Handle markdown code blocks
-  if (responseText.startsWith("```")) {
-    responseText = responseText.replace(/```json?\s*/g, "").replace(/```\s*$/g, "");
-  }
-
-  const parsed = JSON.parse(responseText) as Record<string, string>;
-  const result: Record<number, string> = {};
-  for (const [k, v] of Object.entries(parsed)) {
-    result[parseInt(k, 10)] = v;
-  }
   return result;
 }
 

@@ -17,7 +17,6 @@ export interface ExtensionSettings {
   budgetName: string;
   accountId: string;
   accountName: string;
-  anthropicKey: string;
   defaultPayee: string;
   amazonDomain: "amazon.ca" | "amazon.com";
   duplicateDaysTolerance: number;
@@ -88,7 +87,10 @@ export type MessageType =
   | "IMPORT_RESULT"
   | "FETCH_BUDGETS"
   | "FETCH_ACCOUNTS"
-  | "GET_PAGE_STATUS";
+  | "GET_PAGE_STATUS"
+  | "FETCH_UNCATEGORIZED_TRANSACTIONS"
+  | "UPDATE_TRANSACTION_CATEGORIES"
+  | "MATCH_AND_CATEGORIZE";
 
 export interface ExtensionMessage {
   type: MessageType;
@@ -131,4 +133,37 @@ export interface ImportResultMessage extends ExtensionMessage {
 
 export interface PageStatusMessage extends ExtensionMessage {
   type: "GET_PAGE_STATUS";
+}
+
+// ── Match & Categorize types ──
+
+/** A YNAB transaction fetched from the API (for matching against Amazon orders). */
+export interface YnabTransaction {
+  id: string;
+  date: string;          // YYYY-MM-DD
+  amount: number;        // milliunits (negative = outflow)
+  payee_name: string;
+  category_id: string | null;
+  category_name: string | null;
+  memo: string | null;
+}
+
+/** Confidence level for an Amazon order ↔ YNAB transaction match. */
+export type MatchConfidence = "high" | "medium" | "ambiguous";
+
+/** A matched pair: one Amazon order linked to one YNAB transaction. */
+export interface MatchedTransaction {
+  order: ScrapedOrder;
+  transaction: YnabTransaction;
+  suggestedCategory: string;
+  suggestedCategoryId: string;
+  confidence: MatchConfidence;
+  approved: boolean;
+}
+
+/** Result of matching Amazon orders against YNAB transactions. */
+export interface MatchResult {
+  matched: MatchedTransaction[];
+  unmatchedOrders: ScrapedOrder[];
+  unmatchedTransactions: YnabTransaction[];
 }

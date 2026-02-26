@@ -2,12 +2,15 @@ import React, { useEffect, useState } from "react";
 import { isConfigured, getPendingOrders } from "@lib/storage";
 import { SetupView } from "./SetupView";
 import { ReviewView } from "./ReviewView";
+import { MatchView } from "./MatchView";
 import type { CsvRow } from "@lib/types";
 
-type View = "loading" | "setup" | "review";
+type View = "loading" | "setup" | "ready";
+type Tab = "match" | "csv";
 
 export function Popup() {
   const [view, setView] = useState<View>("loading");
+  const [tab, setTab] = useState<Tab>("match");
   const [orders, setOrders] = useState<CsvRow[]>([]);
 
   useEffect(() => {
@@ -19,12 +22,12 @@ export function Popup() {
       }
       const pending = await getPendingOrders();
       setOrders(pending);
-      setView("review");
+      setView("ready");
     })();
   }, []);
 
   const handleSetupComplete = () => {
-    setView("review");
+    setView("ready");
   };
 
   const openOptions = () => {
@@ -51,7 +54,27 @@ export function Popup() {
       </div>
 
       {view === "setup" && <SetupView onComplete={handleSetupComplete} />}
-      {view === "review" && <ReviewView orders={orders} setOrders={setOrders} />}
+      {view === "ready" && (
+        <>
+          <div className="tab-bar">
+            <button
+              className={`tab-btn ${tab === "match" ? "active" : ""}`}
+              onClick={() => setTab("match")}
+            >
+              Match & Categorize
+            </button>
+            <button
+              className={`tab-btn ${tab === "csv" ? "active" : ""}`}
+              onClick={() => setTab("csv")}
+            >
+              CSV Import
+            </button>
+          </div>
+
+          {tab === "match" && <MatchView />}
+          {tab === "csv" && <ReviewView orders={orders} setOrders={setOrders} />}
+        </>
+      )}
     </div>
   );
 }
