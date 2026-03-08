@@ -256,27 +256,43 @@ async function handleUpdateCategories(
 
 async function handleMatchAndCategorize(
   payload: { sinceDate: string }
-): Promise<{ result?: MatchResult; error?: string }> {
+): Promise<{ result?: MatchResult; error?: string; debug?: string[] }> {
+  const debug: string[] = [];
   try {
     const settings = await getSettings();
+    debug.push(`Settings: token=${settings.ynabToken ? "set" : "MISSING"}, budget=${settings.budgetId ? "set" : "MISSING"}, account=${settings.accountId ? "set" : "MISSING"}`);
+
     if (!settings.ynabToken || !settings.budgetId || !settings.accountId) {
-      return { error: "YNAB credentials not configured. Open Settings." };
+      return { error: "YNAB credentials not configured. Open Settings.", debug };
     }
 
     // 1. Scrape orders from current Amazon page
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (!tab?.id) return { error: "No active tab" };
+    debug.push(`Active tab: id=${tab?.id}, url=${tab?.url?.slice(0, 80)}`);
+
+    if (!tab?.id) return { error: "No active tab", debug };
     if (!tab.url?.includes("amazon.ca") && !tab.url?.includes("amazon.com")) {
-      return { error: "Not on an Amazon page. Navigate to your order history first." };
+      return { error: "Not on an Amazon page. Navigate to your order history first.", debug };
     }
 
-    const scrapeResponse = await chrome.tabs.sendMessage(tab.id, { type: "SCRAPE_ORDERS" });
-    if (scrapeResponse.error) return { error: scrapeResponse.error };
+    let scrapeResponse: { orders?: ScrapedOrder[]; error?: string };
+    try {
+      scrapeResponse = await chrome.tabs.sendMessage(tab.id, { type: "SCRAPE_ORDERS" });
+      debug.push(`Scrape response: ${scrapeResponse.error ?? `${scrapeResponse.orders?.length ?? 0} orders`}`);
+    } catch (e) {
+      debug.push(`Scrape FAILED: ${e instanceof Error ? e.message : String(e)}`);
+      return { error: "Content script not running. Refresh the Amazon page and try again.", debug };
+    }
+
+    if (scrapeResponse.error) return { error: scrapeResponse.error, debug };
     const scrapedOrders: ScrapedOrder[] = scrapeResponse.orders ?? [];
 
     if (scrapedOrders.length === 0) {
-      return { error: "No orders found on this page. Navigate to your Amazon order history and try again." };
+      debug.push("Scraper returned 0 orders — page may not have order cards, or selectors don't match");
+      return { error: "No orders found on this page. Navigate to your Amazon order history and try again.", debug };
     }
+
+    debug.push(`Scraped ${scrapedOrders.length} orders. First: ${scrapedOrders[0].items[0]?.title?.slice(0, 40) ?? "no items"} ($${scrapedOrders[0].total})`);
 
     // 2. Fetch uncategorized Amazon transactions from YNAB
     const ynabTransactions = await fetchUncategorizedAmazonTransactions(
@@ -285,6 +301,7 @@ async function handleMatchAndCategorize(
       settings.accountId,
       payload.sinceDate
     );
+    debug.push(`YNAB: ${ynabTransactions.length} uncategorized Amazon transactions since ${payload.sinceDate}`);
 
     if (ynabTransactions.length === 0) {
       return {
@@ -293,16 +310,19 @@ async function handleMatchAndCategorize(
           unmatchedOrders: scrapedOrders,
           unmatchedTransactions: [],
         },
+        debug,
       };
     }
 
     // 3. Match orders to transactions
     const matchResult = matchTransactions(scrapedOrders, ynabTransactions);
+    debug.push(`Matched: ${matchResult.matched.length}, unmatched orders: ${matchResult.unmatchedOrders.length}, unmatched txns: ${matchResult.unmatchedTransactions.length}`);
 
     // 4. AI-categorize matched items using highest-value item title
     if (matchResult.matched.length > 0) {
       const categories = await fetchCategories(settings.ynabToken, settings.budgetId);
       await saveCategories(categories);
+      debug.push(`Fetched ${categories.length} YNAB categories`);
 
       // Build CsvRows from matched items for categorization
       const rowsForAI: CsvRow[] = matchResult.matched.map((m) => ({
@@ -313,24 +333,30 @@ async function handleMatchAndCategorize(
         Category: "Uncategorized",
       }));
 
-      const categorized = await categorizeWithAI(rowsForAI, categories);
+      try {
+        const categorized = await categorizeWithAI(rowsForAI, categories);
+        debug.push(`AI categorized ${categorized.filter((r) => r.Category !== "Uncategorized").length}/${categorized.length} items`);
 
-      // Map categories back to matched transactions
-      const categoryIdMap: Record<string, string> = {};
-      for (const cat of categories) {
-        categoryIdMap[cat.name.toLowerCase()] = cat.id;
-      }
+        // Map categories back to matched transactions
+        const categoryIdMap: Record<string, string> = {};
+        for (const cat of categories) {
+          categoryIdMap[cat.name.toLowerCase()] = cat.id;
+        }
 
-      for (let i = 0; i < matchResult.matched.length; i++) {
-        const catName = categorized[i]?.Category ?? "Uncategorized";
-        matchResult.matched[i].suggestedCategory = catName;
-        matchResult.matched[i].suggestedCategoryId =
-          categoryIdMap[catName.toLowerCase()] ?? "";
+        for (let i = 0; i < matchResult.matched.length; i++) {
+          const catName = categorized[i]?.Category ?? "Uncategorized";
+          matchResult.matched[i].suggestedCategory = catName;
+          matchResult.matched[i].suggestedCategoryId =
+            categoryIdMap[catName.toLowerCase()] ?? "";
+        }
+      } catch (e) {
+        debug.push(`AI categorization failed: ${e instanceof Error ? e.message : String(e)}`);
       }
     }
 
-    return { result: matchResult };
+    return { result: matchResult, debug };
   } catch (e) {
-    return { error: e instanceof Error ? e.message : "Match & categorize failed" };
+    debug.push(`FATAL: ${e instanceof Error ? e.message : String(e)}`);
+    return { error: e instanceof Error ? e.message : "Match & categorize failed", debug };
   }
 }

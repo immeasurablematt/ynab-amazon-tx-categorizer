@@ -1,263 +1,380 @@
-"use client";
+import Link from "next/link";
 
-import { useState } from "react";
+function Nav() {
+  return (
+    <nav className="flex items-center justify-between px-6 py-4 max-w-6xl mx-auto">
+      <Link href="/" className="text-xl font-bold text-slate-100 no-underline">
+        Amazon&rarr;YNAB
+      </Link>
+      <div className="flex items-center gap-6">
+        <Link
+          href="/auth/signin"
+          className="text-sm text-slate-300 hover:text-slate-100 no-underline"
+        >
+          Log In
+        </Link>
+        <Link
+          href="/auth/signin"
+          className="text-sm font-semibold bg-sky-500 hover:bg-sky-400 text-white px-4 py-2 rounded-lg no-underline transition-colors"
+        >
+          Start Free Trial
+        </Link>
+      </div>
+    </nav>
+  );
+}
+
+function Footer() {
+  return (
+    <footer className="border-t border-slate-800 mt-24 py-8 px-6 max-w-6xl mx-auto">
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-slate-500">
+        <p>&copy; 2026 Amazon&rarr;YNAB</p>
+        <div className="flex gap-6">
+          <Link href="/privacy" className="hover:text-slate-300 no-underline">
+            Privacy
+          </Link>
+          <Link href="/terms" className="hover:text-slate-300 no-underline">
+            Terms
+          </Link>
+          <Link href="/pricing" className="hover:text-slate-300 no-underline">
+            Pricing
+          </Link>
+        </div>
+      </div>
+    </footer>
+  );
+}
 
 export default function Home() {
-  const [file, setFile] = useState<File | null>(null);
-  const [mode, setMode] = useState<"convert" | "import">("convert");
-  const [status, setStatus] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<{ imported?: number; skippedDuplicates?: number; error?: string } | null>(null);
-  const [showSteps, setShowSteps] = useState(true);
-
-  async function handleConvert() {
-    if (!file) {
-      setStatus("Please select a file.");
-      return;
-    }
-    setLoading(true);
-    setStatus(null);
-    setResult(null);
-    try {
-      const form = new FormData();
-      form.append("file", file);
-      const res = await fetch("/api/normalize", { method: "POST", body: form });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || `Error ${res.status}`);
-      }
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "amazon_ynab_ready.csv";
-      a.click();
-      URL.revokeObjectURL(url);
-      setStatus("Converted! Download started. Review the CSV, fix any categories, then switch to Import and upload it.");
-    } catch (e) {
-      setStatus(e instanceof Error ? e.message : "Convert failed");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function handleImport() {
-    if (!file) {
-      setStatus("Please select a file.");
-      return;
-    }
-    setLoading(true);
-    setStatus(null);
-    setResult(null);
-    try {
-      const form = new FormData();
-      form.append("file", file);
-      const res = await fetch("/api/import", { method: "POST", body: form });
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || `Error ${res.status}`);
-      }
-      setResult(data);
-      setStatus(
-        `Imported ${data.imported ?? 0} transaction(s). ` +
-        (data.skippedDuplicates ? `Skipped ${data.skippedDuplicates} duplicate(s). ` : "") +
-        "Done."
-      );
-    } catch (e) {
-      setStatus(e instanceof Error ? e.message : "Import failed");
-    } finally {
-      setLoading(false);
-    }
-  }
-
   return (
-    <main style={{ maxWidth: 640, margin: "0 auto" }}>
-      <h1 style={{ fontSize: "1.75rem", fontWeight: 600, marginBottom: "0.25rem" }}>
-        YNAB Import
-      </h1>
-      <p style={{ color: "#94a3b8", marginBottom: "1.5rem" }}>
-        Convert Amazon order exports and import to YNAB with categories. Duplicates are skipped.
-      </p>
+    <div className="min-h-screen bg-slate-900 text-slate-100">
+      <Nav />
 
-      {/* Explicit steps - always visible so you remember in a month */}
-      <section
-        style={{
-          background: "#1e293b",
-          border: "1px solid #334155",
-          borderRadius: 12,
-          padding: "1.25rem 1.5rem",
-          marginBottom: "2rem",
-        }}
-      >
-        <button
-          onClick={() => setShowSteps(!showSteps)}
-          style={{
-            background: "none",
-            border: "none",
-            color: "#e2e8f0",
-            fontSize: "1rem",
-            fontWeight: 600,
-            cursor: "pointer",
-            display: "flex",
-            alignItems: "center",
-            gap: "0.5rem",
-            width: "100%",
-            textAlign: "left",
-          }}
+      {/* Hero */}
+      <section className="text-center px-6 pt-20 pb-24 max-w-4xl mx-auto">
+        <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight leading-tight mb-6">
+          Stop Manually Entering Amazon Purchases in YNAB
+        </h1>
+        <p className="text-lg sm:text-xl text-slate-400 max-w-2xl mx-auto mb-10">
+          Upload your Amazon order history, get AI-powered categorization, and
+          import to YNAB in seconds. Not hours.
+        </p>
+        <Link
+          href="/auth/signin"
+          className="inline-block bg-sky-500 hover:bg-sky-400 text-white font-semibold text-lg px-8 py-4 rounded-xl no-underline transition-colors"
         >
-          {showSteps ? "▼" : "▶"} Step-by-step (do this every time)
-        </button>
-        {showSteps && (
-          <ol
-            style={{
-              margin: "1rem 0 0",
-              paddingLeft: "1.25rem",
-              color: "#cbd5e1",
-              lineHeight: 1.7,
-              fontSize: "0.95rem",
-            }}
-          >
-            <li>
-              <strong>Export from Amazon</strong> — Install{" "}
-              <a href="https://chromewebstore.google.com/detail/amazon-order-history-repo/mgkilgclilajckgnedgjgnfdokkgnibi" target="_blank" rel="noreferrer">
-                Amazon Order History Reporter
-              </a>
-              . Go to Amazon → Your Orders → click the orange <strong>A</strong> → pick a year → download CSV.
-            </li>
-            <li>
-              <strong>Convert</strong> — Choose &quot;Convert Amazon export&quot; below, select your CSV, click Convert &amp; Download. You get <code style={{ background: "#0f172a", padding: "2px 4px", borderRadius: 4 }}>amazon_ynab_ready.csv</code>.
-            </li>
-            <li>
-              <strong>Review</strong> — Open the CSV. Check the Category column. Fix any wrong categories (e.g. change &quot;Uncategorized&quot; to &quot;Kids Supplies&quot;).
-            </li>
-            <li>
-              <strong>Import</strong> — Switch to &quot;Import to YNAB&quot; below, select the same CSV, click Import to YNAB. Duplicates are skipped.
-            </li>
-          </ol>
-        )}
+          Start Your Free 14-Day Trial
+        </Link>
+        <p className="text-sm text-slate-500 mt-4">No credit card required</p>
       </section>
 
-      {/* Setup (one-time) */}
-      <details
-        style={{
-          marginBottom: "2rem",
-          fontSize: "0.875rem",
-          color: "#94a3b8",
-        }}
-      >
-        <summary style={{ cursor: "pointer", marginBottom: "0.5rem" }}>
-          One-time setup: Vercel Environment Variables
-        </summary>
-        <p style={{ margin: "0.5rem 0" }}>
-          In Vercel → Project → Settings → Environment Variables, add:
+      {/* Problem */}
+      <section className="px-6 py-20 max-w-6xl mx-auto">
+        <h2 className="text-3xl font-bold text-center mb-4">
+          Sound Familiar?
+        </h2>
+        <p className="text-slate-400 text-center mb-12 max-w-2xl mx-auto">
+          Amazon purchases are the messiest part of any YNAB workflow.
         </p>
-        <ul style={{ margin: "0.25rem 0", paddingLeft: "1.25rem" }}>
-          <li><code>YNAB_ACCESS_TOKEN</code> — YNAB → Settings → Developer → Personal Access Token</li>
-          <li><code>YNAB_BUDGET_ID</code> — Run <code>python get_ynab_ids.py</code> locally to get it</li>
-          <li><code>YNAB_ACCOUNT_ID</code> — Same script; use the account you want (e.g. [MBNA] Amazon.ca Rewards)</li>
-        </ul>
-        <p style={{ margin: "0.5rem 0 0" }}>
-          Redeploy after adding. For AI categorization, use the Python script locally.
+        <div className="grid sm:grid-cols-3 gap-6">
+          <div className="bg-slate-800 rounded-xl p-6 border border-slate-700">
+            <h3 className="text-lg font-semibold mb-2">
+              Manual Entry Tedium
+            </h3>
+            <p className="text-slate-400 text-sm leading-relaxed">
+              Copying each Amazon order into YNAB one by one. Dozens of
+              transactions every month, each requiring manual data entry.
+            </p>
+          </div>
+          <div className="bg-slate-800 rounded-xl p-6 border border-slate-700">
+            <h3 className="text-lg font-semibold mb-2">
+              Cryptic Descriptions
+            </h3>
+            <p className="text-slate-400 text-sm leading-relaxed">
+              Amazon bank charges show up as &ldquo;AMZN Mktp US&rdquo; or
+              &ldquo;Amazon.com&rdquo; with no detail about what you actually
+              bought.
+            </p>
+          </div>
+          <div className="bg-slate-800 rounded-xl p-6 border border-slate-700">
+            <h3 className="text-lg font-semibold mb-2">Wrong Categories</h3>
+            <p className="text-slate-400 text-sm leading-relaxed">
+              Everything ends up in a generic &ldquo;Shopping&rdquo; category.
+              Your budget data is useless when you can&rsquo;t tell groceries
+              from electronics.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* Solution */}
+      <section className="px-6 py-20 max-w-6xl mx-auto">
+        <h2 className="text-3xl font-bold text-center mb-4">
+          A Better Way
+        </h2>
+        <p className="text-slate-400 text-center mb-12 max-w-2xl mx-auto">
+          Let AI do the tedious work so your budget stays accurate.
         </p>
-      </details>
-
-      {/* Mode selection */}
-      <div style={{ marginBottom: "1.5rem" }}>
-        <label style={{ display: "block", marginBottom: "0.5rem", fontWeight: 500 }}>
-          Step 1: Choose mode
-        </label>
-        <div style={{ display: "flex", gap: "1rem" }}>
-          <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer" }}>
-            <input
-              type="radio"
-              name="mode"
-              checked={mode === "convert"}
-              onChange={() => setMode("convert")}
-            />
-            Convert Amazon export
-          </label>
-          <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer" }}>
-            <input
-              type="radio"
-              name="mode"
-              checked={mode === "import"}
-              onChange={() => setMode("import")}
-            />
-            Import to YNAB
-          </label>
+        <div className="grid sm:grid-cols-3 gap-6">
+          <div className="bg-slate-800 rounded-xl p-6 border border-slate-700">
+            <div className="text-sky-400 text-2xl font-bold mb-3">CSV</div>
+            <h3 className="text-lg font-semibold mb-2">
+              Automatic CSV Import
+            </h3>
+            <p className="text-slate-400 text-sm leading-relaxed">
+              Upload your Amazon order history CSV and we parse it instantly.
+              No manual copying, no reformatting.
+            </p>
+          </div>
+          <div className="bg-slate-800 rounded-xl p-6 border border-slate-700">
+            <div className="text-sky-400 text-2xl font-bold mb-3">AI</div>
+            <h3 className="text-lg font-semibold mb-2">
+              AI Categorization
+            </h3>
+            <p className="text-slate-400 text-sm leading-relaxed">
+              Claude reads your product descriptions and matches them to your
+              actual YNAB categories. Groceries, electronics, kids
+              supplies&mdash;automatically.
+            </p>
+          </div>
+          <div className="bg-slate-800 rounded-xl p-6 border border-slate-700">
+            <div className="text-sky-400 text-2xl font-bold mb-3">Split</div>
+            <h3 className="text-lg font-semibold mb-2">
+              Split Transactions
+            </h3>
+            <p className="text-slate-400 text-sm leading-relaxed">
+              Multi-item Amazon orders become proper split transactions in
+              YNAB, each item categorized correctly.
+            </p>
+          </div>
         </div>
-      </div>
+      </section>
 
-      {/* File input */}
-      <div style={{ marginBottom: "1.5rem" }}>
-        <label style={{ display: "block", marginBottom: "0.5rem", fontWeight: 500 }}>
-          Step 2: Select CSV
-        </label>
-        <input
-          type="file"
-          accept=".csv"
-          onChange={(e) => {
-            setFile(e.target.files?.[0] ?? null);
-            setResult(null);
-          }}
-          style={{
-            display: "block",
-            padding: "0.5rem",
-            border: "1px solid #334155",
-            borderRadius: 8,
-            background: "#1e293b",
-            color: "#e2e8f0",
-          }}
-        />
-      </div>
-
-      {/* Action button */}
-      <div style={{ marginBottom: "1.5rem" }}>
-        <button
-          onClick={mode === "convert" ? handleConvert : handleImport}
-          disabled={loading}
-          style={{
-            padding: "0.75rem 1.5rem",
-            background: loading ? "#475569" : "#0ea5e9",
-            color: "#fff",
-            border: "none",
-            borderRadius: 8,
-            fontWeight: 600,
-            cursor: loading ? "not-allowed" : "pointer",
-          }}
-        >
-          {loading ? "..." : mode === "convert" ? "Convert & Download" : "Import to YNAB"}
-        </button>
-      </div>
-
-      {/* Status / result */}
-      {(status || result) && (
-        <div
-          style={{
-            padding: "1rem",
-            background: result?.error ? "#7f1d1d" : "#0f172a",
-            border: "1px solid #334155",
-            borderRadius: 8,
-          }}
-        >
-          {status && <p style={{ margin: 0 }}>{status}</p>}
-          {result && !result.error && (
-            <pre style={{ margin: "0.5rem 0 0", fontSize: "0.875rem", color: "#94a3b8" }}>
-              {JSON.stringify(result, null, 2)}
-            </pre>
-          )}
+      {/* How It Works */}
+      <section className="px-6 py-20 max-w-6xl mx-auto">
+        <h2 className="text-3xl font-bold text-center mb-12">
+          How It Works
+        </h2>
+        <div className="grid sm:grid-cols-3 gap-8 max-w-4xl mx-auto">
+          <div className="text-center">
+            <div className="w-12 h-12 rounded-full bg-sky-500/20 text-sky-400 text-xl font-bold flex items-center justify-center mx-auto mb-4">
+              1
+            </div>
+            <h3 className="font-semibold mb-2">Export from Amazon</h3>
+            <p className="text-slate-400 text-sm">
+              Download your order history as a CSV using the Amazon Order
+              History Reporter extension.
+            </p>
+          </div>
+          <div className="text-center">
+            <div className="w-12 h-12 rounded-full bg-sky-500/20 text-sky-400 text-xl font-bold flex items-center justify-center mx-auto mb-4">
+              2
+            </div>
+            <h3 className="font-semibold mb-2">Connect YNAB</h3>
+            <p className="text-slate-400 text-sm">
+              Sign in with your YNAB account via OAuth. We never see your
+              password.
+            </p>
+          </div>
+          <div className="text-center">
+            <div className="w-12 h-12 rounded-full bg-sky-500/20 text-sky-400 text-xl font-bold flex items-center justify-center mx-auto mb-4">
+              3
+            </div>
+            <h3 className="font-semibold mb-2">Import with AI</h3>
+            <p className="text-slate-400 text-sm">
+              Upload your CSV. AI categorizes every item and imports directly
+              into your YNAB budget. Done.
+            </p>
+          </div>
         </div>
-      )}
+      </section>
 
-      <p style={{ marginTop: "2rem", fontSize: "0.875rem", color: "#64748b" }}>
-        <a href="https://github.com/immeasurablematt/ynab-automation" target="_blank" rel="noreferrer">
-          Source
-        </a>
-        {" · "}
-        <a href="https://chromewebstore.google.com/detail/amazon-order-history-repo/mgkilgclilajckgnedgjgnfdokkgnibi" target="_blank" rel="noreferrer">
-          Amazon Order History Reporter
-        </a>
-      </p>
-    </main>
+      {/* Pricing */}
+      <section className="px-6 py-20 max-w-6xl mx-auto" id="pricing">
+        <h2 className="text-3xl font-bold text-center mb-12">
+          Simple Pricing
+        </h2>
+        <div className="bg-slate-800 border border-slate-700 rounded-2xl p-8 max-w-md mx-auto text-center">
+          <p className="text-slate-400 text-sm uppercase tracking-wider mb-2">
+            Everything included
+          </p>
+          <div className="mb-6">
+            <span className="text-5xl font-extrabold">$4.99</span>
+            <span className="text-slate-400 text-lg">/month</span>
+          </div>
+          <ul className="text-left text-slate-300 text-sm space-y-3 mb-8">
+            <li className="flex items-start gap-2">
+              <span className="text-sky-400 mt-0.5">&#10003;</span>
+              Unlimited imports
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="text-sky-400 mt-0.5">&#10003;</span>
+              AI-powered categorization
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="text-sky-400 mt-0.5">&#10003;</span>
+              Split transaction support
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="text-sky-400 mt-0.5">&#10003;</span>
+              Duplicate detection
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="text-sky-400 mt-0.5">&#10003;</span>
+              14-day free trial
+            </li>
+          </ul>
+          <Link
+            href="/auth/signin"
+            className="block bg-sky-500 hover:bg-sky-400 text-white font-semibold py-3 rounded-xl no-underline transition-colors"
+          >
+            Start Free Trial
+          </Link>
+          <p className="text-xs text-slate-500 mt-3">No credit card required</p>
+        </div>
+      </section>
+
+      {/* Security */}
+      <section className="px-6 py-20 max-w-6xl mx-auto">
+        <h2 className="text-3xl font-bold text-center mb-4">
+          Your Data Is Safe
+        </h2>
+        <p className="text-slate-400 text-center mb-12 max-w-2xl mx-auto">
+          Security is not an afterthought. It&rsquo;s built into every layer.
+        </p>
+        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="bg-slate-800 rounded-xl p-6 border border-slate-700 text-center">
+            <h3 className="font-semibold mb-2">YNAB OAuth</h3>
+            <p className="text-slate-400 text-sm">
+              We use YNAB&rsquo;s official OAuth flow. Your YNAB password never
+              touches our servers.
+            </p>
+          </div>
+          <div className="bg-slate-800 rounded-xl p-6 border border-slate-700 text-center">
+            <h3 className="font-semibold mb-2">No Password Storage</h3>
+            <p className="text-slate-400 text-sm">
+              We don&rsquo;t store passwords for any service. Authentication
+              uses secure tokens only.
+            </p>
+          </div>
+          <div className="bg-slate-800 rounded-xl p-6 border border-slate-700 text-center">
+            <h3 className="font-semibold mb-2">Encrypted Data</h3>
+            <p className="text-slate-400 text-sm">
+              All data is encrypted in transit and at rest. YNAB tokens are
+              stored with AES-256 encryption.
+            </p>
+          </div>
+          <div className="bg-slate-800 rounded-xl p-6 border border-slate-700 text-center">
+            <h3 className="font-semibold mb-2">Minimal Retention</h3>
+            <p className="text-slate-400 text-sm">
+              We keep only what&rsquo;s needed to provide the service. Delete
+              your account and your data goes with it.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* FAQ */}
+      <section className="px-6 py-20 max-w-3xl mx-auto">
+        <h2 className="text-3xl font-bold text-center mb-12">
+          Frequently Asked Questions
+        </h2>
+        <div className="space-y-4">
+          <details className="bg-slate-800 border border-slate-700 rounded-xl p-5 group">
+            <summary className="font-semibold cursor-pointer list-none flex items-center justify-between">
+              What is this?
+              <span className="text-slate-500 group-open:rotate-45 transition-transform text-xl leading-none">+</span>
+            </summary>
+            <p className="text-slate-400 text-sm mt-3 leading-relaxed">
+              Amazon&rarr;YNAB imports your Amazon purchase history directly
+              into YNAB with AI-powered categorization. Instead of manually
+              entering each Amazon order, you upload a CSV and we handle the
+              rest&mdash;matching each product to your YNAB categories
+              automatically.
+            </p>
+          </details>
+          <details className="bg-slate-800 border border-slate-700 rounded-xl p-5 group">
+            <summary className="font-semibold cursor-pointer list-none flex items-center justify-between">
+              How does AI categorization work?
+              <span className="text-slate-500 group-open:rotate-45 transition-transform text-xl leading-none">+</span>
+            </summary>
+            <p className="text-slate-400 text-sm mt-3 leading-relaxed">
+              We use Claude (by Anthropic) to read your Amazon product
+              descriptions and match them to your existing YNAB budget
+              categories. If you have &ldquo;Groceries,&rdquo;
+              &ldquo;Electronics,&rdquo; and &ldquo;Kids Supplies&rdquo; in
+              YNAB, the AI will sort your purchases into those categories
+              automatically.
+            </p>
+          </details>
+          <details className="bg-slate-800 border border-slate-700 rounded-xl p-5 group">
+            <summary className="font-semibold cursor-pointer list-none flex items-center justify-between">
+              Is my YNAB data safe?
+              <span className="text-slate-500 group-open:rotate-45 transition-transform text-xl leading-none">+</span>
+            </summary>
+            <p className="text-slate-400 text-sm mt-3 leading-relaxed">
+              Yes. We use YNAB&rsquo;s official OAuth integration&mdash;your
+              password is never shared with us. We only access the budget and
+              account data you authorize, and tokens are encrypted at rest. You
+              can revoke access from your YNAB settings at any time.
+            </p>
+          </details>
+          <details className="bg-slate-800 border border-slate-700 rounded-xl p-5 group">
+            <summary className="font-semibold cursor-pointer list-none flex items-center justify-between">
+              What Amazon data do you need?
+              <span className="text-slate-500 group-open:rotate-45 transition-transform text-xl leading-none">+</span>
+            </summary>
+            <p className="text-slate-400 text-sm mt-3 leading-relaxed">
+              Just the order history CSV export from Amazon. We read the product
+              names, dates, and amounts to create YNAB transactions. We
+              don&rsquo;t need your Amazon login or any other Amazon account
+              access.
+            </p>
+          </details>
+          <details className="bg-slate-800 border border-slate-700 rounded-xl p-5 group">
+            <summary className="font-semibold cursor-pointer list-none flex items-center justify-between">
+              Can I cancel anytime?
+              <span className="text-slate-500 group-open:rotate-45 transition-transform text-xl leading-none">+</span>
+            </summary>
+            <p className="text-slate-400 text-sm mt-3 leading-relaxed">
+              Yes. There are no contracts or commitments. Cancel from your
+              account settings and you won&rsquo;t be charged again. Your data
+              is deleted upon account closure.
+            </p>
+          </details>
+          <details className="bg-slate-800 border border-slate-700 rounded-xl p-5 group">
+            <summary className="font-semibold cursor-pointer list-none flex items-center justify-between">
+              What about the Chrome extension?
+              <span className="text-slate-500 group-open:rotate-45 transition-transform text-xl leading-none">+</span>
+            </summary>
+            <p className="text-slate-400 text-sm mt-3 leading-relaxed">
+              The Chrome extension (Amazon Order History Reporter) is a
+              separate, free tool that exports your Amazon order history as a
+              CSV file. You use it to get the data out of Amazon, then upload
+              that CSV here for AI categorization and YNAB import.
+            </p>
+          </details>
+        </div>
+      </section>
+
+      {/* Final CTA */}
+      <section className="px-6 py-24 text-center max-w-4xl mx-auto">
+        <h2 className="text-3xl sm:text-4xl font-bold mb-4">
+          Ready to Save Hours Every Month?
+        </h2>
+        <p className="text-slate-400 text-lg mb-8">
+          Stop copying Amazon orders by hand. Let AI handle the categories.
+        </p>
+        <Link
+          href="/auth/signin"
+          className="inline-block bg-sky-500 hover:bg-sky-400 text-white font-semibold text-lg px-8 py-4 rounded-xl no-underline transition-colors"
+        >
+          Start Your Free 14-Day Trial
+        </Link>
+        <p className="text-sm text-slate-500 mt-4">No credit card required</p>
+      </section>
+
+      <Footer />
+    </div>
   );
 }

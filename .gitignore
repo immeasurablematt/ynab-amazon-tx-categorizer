@@ -18,3 +18,5 @@ extension/node_modules/
 .DS_Store
 .worktrees/
 .githooks/
+.env.local
+drizzle/

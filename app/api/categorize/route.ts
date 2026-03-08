@@ -1,4 +1,18 @@
 import { NextResponse } from "next/server";
+import { Ratelimit } from "@upstash/ratelimit";
+import { Redis } from "@upstash/redis";
+
+let _ratelimit: Ratelimit | null = null;
+function getRatelimit() {
+  if (!_ratelimit) {
+    _ratelimit = new Ratelimit({
+      redis: Redis.fromEnv(),
+      limiter: Ratelimit.slidingWindow(20, "1 h"),
+      prefix: "rl:categorize",
+    });
+  }
+  return _ratelimit;
+}
 
 const BATCH_SIZE = 25;
 
@@ -8,6 +22,15 @@ interface CategorizeRequest {
 }
 
 export async function POST(request: Request) {
+  const ip = request.headers.get("x-forwarded-for") ?? "127.0.0.1";
+  const { success } = await getRatelimit().limit(ip);
+  if (!success) {
+    return NextResponse.json(
+      { error: "Rate limit exceeded" },
+      { status: 429 }
+    );
+  }
+
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     return NextResponse.json(

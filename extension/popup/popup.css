@@ -328,6 +328,22 @@ body {
   opacity: 0.5;
 }
 
+/* ── Debug log ── */
+.debug-log {
+  font-size: 11px;
+  color: #64748b;
+  background: #0c1222;
+  border: 1px solid #1e293b;
+  border-radius: 6px;
+  padding: 6px 8px;
+}
+
+.debug-log summary {
+  cursor: pointer;
+  font-size: 11px;
+  color: #475569;
+}
+
 /* ── Spinner ── */
 .spinner {
   display: inline-block;

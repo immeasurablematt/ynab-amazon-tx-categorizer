@@ -13,6 +13,7 @@ export function MatchView() {
   const [result, setResult] = useState<MatchResult | null>(null);
   const [categories, setCategories] = useState<YnabCategory[]>([]);
   const [applying, setApplying] = useState(false);
+  const [debugLog, setDebugLog] = useState<string[]>([]);
 
   useEffect(() => {
     getCategories().then((cats) => {
@@ -39,11 +40,13 @@ export function MatchView() {
     setLoading(true);
     setStatus(null);
     setResult(null);
+    setDebugLog([]);
     try {
       const response = await chrome.runtime.sendMessage({
         type: "MATCH_AND_CATEGORIZE",
         payload: { sinceDate },
       });
+      if (response.debug) setDebugLog(response.debug);
       if (response.error) {
         setStatus({ type: "error", text: response.error });
       } else if (response.result) {
@@ -55,7 +58,8 @@ export function MatchView() {
           setStatus({ type: "success", text: `${r.matched.length} matched, ${r.unmatchedOrders.length} unmatched orders` });
         }
       }
-    } catch {
+    } catch (e) {
+      setDebugLog((prev) => [...prev, `Popup catch: ${e instanceof Error ? e.message : String(e)}`]);
       setStatus({ type: "error", text: "Could not connect to Amazon page. Try refreshing." });
     } finally {
       setLoading(false);
@@ -292,11 +296,25 @@ export function MatchView() {
       )}
 
       {/* Empty state */}
-      {!result && !loading && (
+      {!result && !loading && debugLog.length === 0 && (
         <div className="empty-state">
           <p>Navigate to your Amazon order history, pick a date range, and click "Sync & Match".</p>
           <p>Matches uncategorized YNAB Amazon transactions with your actual order items.</p>
         </div>
+      )}
+
+      {/* Debug log */}
+      {debugLog.length > 0 && (
+        <details open={!!status?.type && status.type === "error"} className="debug-log">
+          <summary>Debug log ({debugLog.length} steps)</summary>
+          <div style={{ maxHeight: 150, overflowY: "auto", marginTop: 4 }}>
+            {debugLog.map((line, i) => (
+              <div key={i} style={{ fontSize: 10, fontFamily: "monospace", color: "#94a3b8", padding: "1px 0", wordBreak: "break-all" }}>
+                {i + 1}. {line}
+              </div>
+            ))}
+          </div>
+        </details>
       )}
     </div>
   );
