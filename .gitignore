@@ -18,3 +18,5 @@ extension/node_modules/
 .DS_Store
 .worktrees/
 .githooks/
+auto_categorize.log
+auto_categorize_decisions.json
