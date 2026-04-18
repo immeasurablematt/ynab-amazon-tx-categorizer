@@ -17,6 +17,10 @@ extension/build/
 extension/node_modules/
 .DS_Store
 .worktrees/
+.claude/
 .githooks/
 auto_categorize.log
 auto_categorize_decisions.json
+.ynab-mcp/
+categorized_*.csv
+*_orders.csv

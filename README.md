@@ -23,6 +23,8 @@ Requires `ANTHROPIC_API_KEY` in `.env` for AI categorization. Use `--no-ai` to s
 | `ynab_apply_csv_categories.py` | Match YNAB tx to CSV and fix Uncategorized |
 | `ynab_cleanup_amazon.py` | Dedupe and verify categories in YNAB |
 | `get_ynab_ids.py` | List budgets/accounts/categories |
+| `tools/ynab_mcp_server.py` | Repo-local stdio MCP server for YNAB categorization work |
+| `tools/gmail_mcp_server.py` | Repo-local stdio MCP server for read-only Gmail receipt lookup |
 | `app/`, `lib/` | Next.js web app (Vercel) |
 | `docs/` | Instructions and deployment docs |
 
@@ -30,6 +32,8 @@ Requires `ANTHROPIC_API_KEY` in `.env` for AI categorization. Use `--no-ai` to s
 
 - [docs/OPTION_A_INSTRUCTIONS.md](docs/OPTION_A_INSTRUCTIONS.md) — Amazon Chrome extension + normalizer workflow
 - [docs/README_YNAB_IMPORT.md](docs/README_YNAB_IMPORT.md) — Import setup and commands
+- [docs/README_YNAB_MCP.md](docs/README_YNAB_MCP.md) — Repo-local YNAB MCP server notes
+- [docs/README_GMAIL_MCP.md](docs/README_GMAIL_MCP.md) — Repo-local Gmail MCP server notes
 - [docs/WEB_DEPLOY.md](docs/WEB_DEPLOY.md) — Vercel deployment
 
 ## License
