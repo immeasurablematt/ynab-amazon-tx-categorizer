@@ -2,6 +2,8 @@
 
 **Fastest path (Amazon orders):** See [OPTION_A_INSTRUCTIONS.md](OPTION_A_INSTRUCTIONS.md) for the Chrome extension + normalizer workflow.
 
+**MBNA statement import:** See [MBNA_QFX_IMPORT_WORKFLOW.md](MBNA_QFX_IMPORT_WORKFLOW.md) for the signed QFX workflow used for MBNA card statements.
+
 Import CSV transactions into You Need A Budget with **categories assigned** via the official YNAB API.
 
 ## What you need to begin
