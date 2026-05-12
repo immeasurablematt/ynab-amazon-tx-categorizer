@@ -10,7 +10,8 @@ Import Amazon order exports into [You Need A Budget (YNAB)](https://ynab.com) wi
 1. **Setup:** `pip install -r requirements.txt` and copy `.env.example` to `.env`
 2. **Get IDs:** `python get_ynab_ids.py` — lists budgets, accounts, categories
 3. **Convert:** `python amazon_csv_to_ynab.py ~/Downloads/amazon_export.csv` — AI categorizes, outputs `amazon_ynab_ready.csv`
-4. **Import:** `YNAB_CSV_FILE=amazon_ynab_ready.csv python ynab_import.py` — imports to YNAB (duplicates skipped)
+4. **Preview:** `YNAB_CSV_FILE=amazon_ynab_ready.csv python ynab_import.py` — dry-run only, no YNAB changes
+5. **Import:** `YNAB_CSV_FILE=amazon_ynab_ready.csv python ynab_import.py --execute` — imports to YNAB after review (duplicates skipped)
 
 Requires `ANTHROPIC_API_KEY` in `.env` for AI categorization. Use `--no-ai` to skip.
 
@@ -20,8 +21,10 @@ Requires `ANTHROPIC_API_KEY` in `.env` for AI categorization. Use `--no-ai` to s
 |------|---------|
 | `amazon_csv_to_ynab.py` | Amazon CSV → YNAB-ready CSV (AI categorization) |
 | `ynab_import.py` | Import CSV into YNAB |
-| `ynab_apply_csv_categories.py` | Match YNAB tx to CSV and fix Uncategorized |
-| `ynab_cleanup_amazon.py` | Dedupe and verify categories in YNAB |
+| `ynab_apply_csv_categories.py` | Match YNAB tx to CSV and preview Uncategorized fixes; `--execute` required for live changes |
+| `ynab_cleanup_amazon.py` | Dedupe and verify categories in YNAB; dry-run by default, `--execute` required for live changes |
+| `ynab_unassign_hidden_categories.py` | Preview moving hidden-category budget dollars to Ready to Assign; `--execute` required for live changes |
+| `ynab_auto_categorize.py` | Preview AI categorization for uncategorized YNAB transactions; `--execute` required for live changes |
 | `get_ynab_ids.py` | List budgets/accounts/categories |
 | `tools/ynab_mcp_server.py` | Repo-local stdio MCP server for YNAB categorization work |
 | `tools/gmail_mcp_server.py` | Repo-local stdio MCP server for read-only Gmail receipt lookup |

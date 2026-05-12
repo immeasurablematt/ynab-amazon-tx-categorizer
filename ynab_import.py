@@ -7,6 +7,7 @@ Skips duplicates: same amount, date within +/- DAYS_TOLERANCE of an existing tra
 import csv
 import os
 import sys
+import argparse
 from collections import defaultdict
 from datetime import datetime, timedelta
 
@@ -38,7 +39,27 @@ DEFAULT_CATEGORY_NAME = "Uncategorized"
 DAYS_TOLERANCE = int(os.environ.get("YNAB_DUPLICATE_DAYS", "5"))
 
 
-def main():
+def parse_args(argv=None):
+    parser = argparse.ArgumentParser(
+        description="Prepare YNAB transaction imports from a CSV. Defaults to dry-run."
+    )
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Preview the import without creating transactions. This is the default.",
+    )
+    mode.add_argument(
+        "--execute",
+        action="store_true",
+        help="Create transactions in YNAB. Required for live writes.",
+    )
+    return parser.parse_args(argv)
+
+
+def main(argv=None):
+    args = parse_args(argv)
+
     if not ACCESS_TOKEN or not BUDGET_ID or not ACCOUNT_ID:
         print("Error: Set YNAB_ACCESS_TOKEN, YNAB_BUDGET_ID, and YNAB_ACCOUNT_ID in .env")
         print("  Run: python get_ynab_ids.py to see your budget and account IDs.")
@@ -237,6 +258,11 @@ def main():
 
         if not transactions_to_import:
             print("No transactions to import.")
+            return
+
+        if not args.execute:
+            print(f"Dry run: {len(transactions_to_import)} transaction(s) ready to import.")
+            print("No YNAB changes made. Re-run with --execute to create transactions.")
             return
 
         try:

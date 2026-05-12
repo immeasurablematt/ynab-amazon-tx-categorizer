@@ -10,6 +10,7 @@ import json
 import os
 import re
 import sys
+import argparse
 from collections import defaultdict
 from datetime import date, datetime, timedelta
 
@@ -32,6 +33,24 @@ ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY")
 
 START_DATE = date(2025, 12, 2)
 END_DATE = date(2026, 1, 31)
+
+
+def parse_args(argv=None):
+    parser = argparse.ArgumentParser(
+        description="Clean up Amazon YNAB transactions. Defaults to dry-run."
+    )
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Preview duplicate deletes and category fixes without changing YNAB. This is the default.",
+    )
+    mode.add_argument(
+        "--execute",
+        action="store_true",
+        help="Apply duplicate deletes and category fixes in YNAB. Required for live writes.",
+    )
+    return parser.parse_args(argv)
 
 
 def get_ai_categories(items: list[dict], categories: list[str]) -> dict[str, str]:
@@ -109,7 +128,9 @@ JSON response:"""
         return {}
 
 
-def main():
+def main(argv=None):
+    args = parse_args(argv)
+
     if not ACCESS_TOKEN or not BUDGET_ID or not ACCOUNT_ID:
         print("Error: Set YNAB_ACCESS_TOKEN, YNAB_BUDGET_ID, and YNAB_ACCOUNT_ID in .env")
         sys.exit(1)
@@ -205,17 +226,22 @@ def main():
 
         deleted_ids = set()
         for tx in to_delete:
+            d = getattr(tx, "var_date", None) or getattr(tx, "date", None)
+            amt = getattr(tx, "amount", 0)
+            if not args.execute:
+                print(f"  Dry run: would delete duplicate {tx.id} ({d} {amt/1000:.2f})")
+                deleted_ids.add(tx.id)
+                continue
             try:
                 transactions_api.delete_transaction(BUDGET_ID, tx.id)
-                d = getattr(tx, "var_date", None) or getattr(tx, "date", None)
-                amt = getattr(tx, "amount", 0)
                 print(f"  Deleted duplicate: {tx.id} ({d} {amt/1000:.2f})")
                 deleted_ids.add(tx.id)
             except ApiException as e:
                 print(f"  Failed to delete {tx.id}: {e}")
 
         if to_delete:
-            print(f"Deleted {len(deleted_ids)} duplicate(s).")
+            action = "Would delete" if not args.execute else "Deleted"
+            print(f"{action} {len(deleted_ids)} duplicate(s).")
 
         # 2) Verify categories with AI
         remaining = [tx for tx in all_txs if tx.id not in deleted_ids]
@@ -274,18 +300,23 @@ def main():
                     flag_color=getattr(tx, "flag_color", None),
                     subtransactions=None,
                 )
+                memo_short = (item["memo"] or "")[:40]
+                if not args.execute:
+                    fixed_count += 1
+                    print(f"  Dry run: would fix '{old_category}' → '{new_category}' | {memo_short}...")
+                    continue
                 try:
                     transactions_api.update_transaction(
                         BUDGET_ID, tx_id, PutTransactionWrapper(transaction=existing)
                     )
                     fixed_count += 1
-                    memo_short = (item["memo"] or "")[:40]
                     print(f"  Fixed: '{old_category}' → '{new_category}' | {memo_short}...")
                 except ApiException as e:
                     print(f"  Failed to update {tx_id}: {e}")
 
         if fixed_count:
-            print(f"\nFixed {fixed_count} transaction category(ies).")
+            action = "Would fix" if not args.execute else "Fixed"
+            print(f"\n{action} {fixed_count} transaction category(ies).")
         else:
             print("\nAll categories verified correct; no changes needed.")
         

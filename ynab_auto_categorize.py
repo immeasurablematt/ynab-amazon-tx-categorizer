@@ -6,8 +6,8 @@ Pulls all uncategorized transactions from YNAB, sends each to Claude
 for category matching, and applies the category back via the YNAB API.
 
 Usage:
-    python ynab_auto_categorize.py                  # Process all uncategorized
-    python ynab_auto_categorize.py --dry-run        # Preview without applying
+    python ynab_auto_categorize.py                  # Preview all uncategorized
+    python ynab_auto_categorize.py --execute        # Apply categories after review
     python ynab_auto_categorize.py --limit 10       # Process only first 10
     python ynab_auto_categorize.py --batch-size 20  # AI batch size (default: 20)
 
@@ -239,13 +239,19 @@ Respond with ONLY the JSON array, no other text."""
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
-def main():
+def parse_args(argv=None):
     parser = argparse.ArgumentParser(description="Auto-categorize uncategorized YNAB transactions")
-    parser.add_argument("--dry-run", action="store_true", help="Preview without applying changes")
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument("--dry-run", action="store_true", help="Preview without applying changes. This is the default.")
+    mode.add_argument("--execute", action="store_true", help="Apply category updates in YNAB. Required for live writes.")
     parser.add_argument("--limit", type=int, default=0, help="Max transactions to process (0=all)")
     parser.add_argument("--batch-size", type=int, default=20, help="Transactions per AI call")
     parser.add_argument("--budget", type=str, default="", help="Budget name (default: first budget)")
-    args = parser.parse_args()
+    return parser.parse_args(argv)
+
+
+def main(argv=None):
+    args = parse_args(argv)
 
     if not YNAB_TOKEN:
         log.error("YNAB_ACCESS_TOKEN not set. Add it to .env or environment.")
@@ -333,7 +339,7 @@ def main():
         confidence_counts[u.get("confidence", "unknown")] += 1
     log.info("Confidence: high=%d, medium=%d, low=%d", confidence_counts["high"], confidence_counts["medium"], confidence_counts["low"])
 
-    if args.dry_run:
+    if not args.execute:
         log.info("\n--- DRY RUN — no changes applied ---")
         for u in all_updates:
             log.info(

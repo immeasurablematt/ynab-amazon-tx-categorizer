@@ -1,0 +1,423 @@
+version: 2
+
+goal:
+  title: "YNAB Repo Improvements"
+  slug: "ynab-repo-improvements"
+  kind: open_ended
+  tranche: "Discover, prioritize, implement, verify, and audit successive reliability and safety improvement slices."
+  status: active
+  intake:
+    original_request: "Use GoalBuddy prep; improve the YNAB Automation repo."
+    interpreted_outcome: "A later /goal run should improve the YNAB Automation repo by prioritizing reliability and safety, finding the highest-leverage safe local work, implementing bounded verified slices, and auditing completion."
+    input_shape: vague
+    audience: "User as non-developer repo owner"
+    authority: requested
+    proof_type: test
+    completion_proof: "Tests/checks prove risky YNAB or finance workflows default to dry-run, require explicit approval before live data changes, or otherwise have clear guardrails; completed Worker receipts and a final Judge/PM audit map those checks back to the original reliability/safety outcome."
+    likely_misfire: "GoalBuddy could perform generic cleanup or planning without improving reliability, dry-run confidence, live-finance safety, or automation guardrails."
+    blind_spots_considered:
+      - "Local checkout already has unrelated untracked work and is ahead of origin/main."
+      - "Improvement target is reliability and safety first."
+      - "Safety proof should prioritize explicit live-write guardrails and dry-run confidence over generic cleanup."
+      - "Live YNAB or bank-data changes are out of scope unless the user gives fresh explicit approval inside the /goal run."
+    existing_plan_facts: []
+    goal_handling: "Use this fresh GoalBuddy board; do not inspect or reuse another existing goal before starting unless the user changes direction."
+
+rules:
+  pm_owns_state: true
+  one_active_task: true
+  max_write_workers: 1
+  no_implementation_without_worker_or_pm_task: true
+  no_completion_without_judge_or_pm_audit: true
+  planning_is_not_completion: true
+  queued_required_worker_blocks_completion: true
+  continuous_until_full_outcome: true
+  missing_input_or_credentials_do_not_stop_goal: true
+  preserve_and_validate_existing_plan: true
+  intake_misfire_must_be_audited: true
+
+agents:
+  scout: bundled_not_installed
+  worker: bundled_not_installed
+  judge: bundled_not_installed
+
+visual_board:
+  selected: local
+  local:
+    status: live
+    url: "http://127.0.0.1:41737/"
+    command: "npx goalbuddy board docs/goals/ynab-repo-improvements"
+  github_projects:
+    status: not_requested
+    url: null
+    command: "npx goalbuddy extend github-projects"
+    missing: []
+
+active_task: T008
+
+tasks:
+  - id: T001
+    type: scout
+    assignee: Scout
+    status: done
+    reasoning_hint: default
+    objective: "Map repo purpose, current state, verification commands, health signals, and reliability/safety improvement candidates."
+    inputs:
+      - "Repo root"
+      - "Existing docs"
+      - "Existing tests and scripts"
+      - "Git status and worktree state"
+    constraints:
+      - "Read-only."
+      - "Do not edit implementation files."
+      - "Preserve unrelated local changes."
+      - "Do not make live YNAB or bank-data changes."
+      - "Prefer concrete file-path evidence over generic advice."
+    expected_output:
+      - "Repo map"
+      - "Verification commands"
+      - "Ranked reliability/safety improvement candidates"
+      - "Existing live-write or destructive-operation guardrails"
+      - "Candidate next tasks"
+    receipt:
+      result: done
+      summary: "Mapped the repo and found the highest-confidence first safety gap: the root CLI importer writes live YNAB transactions via create_transaction with no dry-run or explicit execute gate, while existing tests do not cover importer live-write safety."
+      evidence:
+        - "ynab_import.py: live transactions_api.create_transaction call after CSV parsing and duplicate checks"
+        - "docs/README_YNAB_IMPORT.md: documents running python ynab_import.py as the import command"
+        - "app/api/import/route.ts: separate live web import route, higher blast radius but less surgical for first slice"
+        - "tools/ynab_mcp_server.py: updateTransactions is intentionally narrow but still live-write capable"
+        - "tests/test_ynab_mcp_server.py and tests/test_amazon_reports_to_ynab.py: no ynab_import dry-run/execute guard coverage"
+      commands:
+        - cmd: "python3 -m unittest discover -s tests"
+          status: pass
+          notes: "Ran 32 tests; existing urllib3 LibreSSL warning and parser warning only."
+      spawned_tasks:
+        - T002
+  - id: T002
+    type: judge
+    assignee: Judge
+    status: done
+    reasoning_hint: default
+    objective: "Review Scout findings and choose the first safe implementation task."
+    inputs:
+      - "T001 receipt"
+      - "User-confirmed improvement target"
+      - "User-confirmed success proof"
+    constraints:
+      - "Do not implement."
+      - "Pick small reviewable work."
+      - "Respect finance-data safety and Git/worktree hygiene rules."
+      - "Prefer tasks that can be proven by tests or dry-run checks."
+      - "Do not choose a Worker task that requires live YNAB or bank-data changes unless the user gives fresh explicit approval."
+    expected_output:
+      - "Decision"
+      - "Exact Worker objective"
+      - "allowed_files"
+      - "verify"
+      - "stop_if"
+      - "Blocked or deferred tasks"
+    receipt:
+      result: done
+      decision: "Do the CLI importer safety gate first. It directly addresses the chosen proof standard, is more surgical than the public web route, and can be proven with unit tests without touching live YNAB data."
+      exact_worker_objective: "Make ynab_import.py default to dry-run and require an explicit execute flag before transactions_api.create_transaction can run, then document and test that boundary."
+      allowed_files:
+        - "ynab_import.py"
+        - "tests/test_ynab_import_safety.py"
+        - "docs/README_YNAB_IMPORT.md"
+        - "README.md"
+        - "CLAUDE.md"
+        - "docs/goals/ynab-repo-improvements/state.yaml"
+      verify:
+        - "python3 -m unittest discover -s tests"
+        - "python3 ynab_import.py --help"
+      stop_if:
+        - "Implementation requires live YNAB credentials."
+        - "Need to alter web import behavior or unrelated scripts."
+        - "Tests require network access."
+      next_allowed_task: T003
+  - id: T003
+    type: worker
+    assignee: Worker
+    status: done
+    reasoning_hint: default
+    objective: "Make ynab_import.py default to dry-run and require an explicit execute flag before transactions_api.create_transaction can run, then document and test that boundary."
+    allowed_files:
+      - "ynab_import.py"
+      - "tests/test_ynab_import_safety.py"
+      - "docs/README_YNAB_IMPORT.md"
+      - "README.md"
+      - "CLAUDE.md"
+      - "docs/goals/ynab-repo-improvements/state.yaml"
+    verify:
+      - "python3 -m unittest discover -s tests"
+      - "python3 ynab_import.py --help"
+    stop_if:
+      - "Need files outside allowed_files."
+      - "Behavior is ambiguous."
+      - "Verification fails twice."
+      - "Would touch live YNAB or bank data without explicit approval."
+      - "Would require production credentials or external account changes."
+    receipt:
+      result: done
+      changed_files:
+        - "ynab_import.py"
+        - "tests/test_ynab_import_safety.py"
+        - "docs/README_YNAB_IMPORT.md"
+        - "README.md"
+        - "CLAUDE.md"
+      commands:
+        - cmd: "python3 -m unittest discover -s tests"
+          status: pass
+          notes: "Ran 35 tests; existing urllib3 LibreSSL warning and parser warning only."
+        - cmd: "python3 ynab_import.py --help"
+          status: pass
+          notes: "Help shows dry-run default and --execute live-write flag."
+      summary: "ynab_import.py now defaults to dry-run, stops before create_transaction unless --execute is supplied, and documentation now separates preview from live import."
+  - id: T999
+    type: judge
+    assignee: Judge
+    status: done
+    reasoning_hint: default
+    objective: "Audit whether the implemented work satisfies the current YNAB repo-improvement tranche."
+    inputs:
+      - "All done task receipts"
+      - "Last verification"
+      - "Current dirty diff"
+      - "Original user outcome"
+    constraints:
+      - "Do not implement."
+      - "Reject completion if required Worker work is still queued or active."
+      - "Reject completion if the broader original outcome still has safe local follow-up slices."
+      - "Reject completion if live-write safety is not addressed or explicitly scoped out by receipt evidence."
+    expected_output:
+      - "complete | not_complete"
+      - "full_outcome_complete: true | false"
+      - "missing evidence"
+      - "next task if not complete"
+    receipt:
+      result: done
+      decision: "not_complete"
+      full_outcome_complete: false
+      summary: "T003 satisfies one high-value guardrail by making the main importer dry-run-first. The broader reliability/safety tranche still has a safe local follow-up: ynab_cleanup_amazon.py can delete duplicates and update categories live without a dry-run/execute gate."
+      missing_evidence:
+        - "No guardrail yet on ynab_cleanup_amazon.py delete_transaction and update_transaction calls."
+      next_task: T004
+
+  - id: T004
+    type: worker
+    assignee: Worker
+    status: done
+    reasoning_hint: default
+    objective: "Make ynab_cleanup_amazon.py default to dry-run and require an explicit execute flag before delete_transaction or update_transaction can run, then document and test that boundary."
+    allowed_files:
+      - "ynab_cleanup_amazon.py"
+      - "tests/test_ynab_cleanup_amazon_safety.py"
+      - "README.md"
+      - "docs/README_YNAB_IMPORT.md"
+      - "CLAUDE.md"
+      - "docs/goals/ynab-repo-improvements/state.yaml"
+    verify:
+      - "python3 -m unittest discover -s tests"
+      - "python3 ynab_cleanup_amazon.py --help"
+    stop_if:
+      - "Implementation requires live YNAB credentials."
+      - "Need to rewrite duplicate-detection or AI categorization logic."
+      - "Tests require network access."
+    receipt:
+      result: done
+      changed_files:
+        - "ynab_cleanup_amazon.py"
+        - "tests/test_ynab_cleanup_amazon_safety.py"
+        - "README.md"
+        - "docs/README_YNAB_IMPORT.md"
+        - "CLAUDE.md"
+      commands:
+        - cmd: "python3 -m unittest discover -s tests"
+          status: pass
+          notes: "Ran 38 tests; existing urllib3 LibreSSL warning and parser/test output only."
+        - cmd: "python3 ynab_cleanup_amazon.py --help"
+          status: pass
+          notes: "Help shows dry-run default and --execute live-write flag."
+      summary: "ynab_cleanup_amazon.py now previews duplicate deletes and category fixes by default; delete_transaction and update_transaction require --execute."
+
+  - id: T005
+    type: worker
+    assignee: Worker
+    status: done
+    reasoning_hint: default
+    objective: "Make ynab_apply_csv_categories.py default to dry-run and require an explicit execute flag before update_transaction can run, then document and test that boundary."
+    allowed_files:
+      - "ynab_apply_csv_categories.py"
+      - "tests/test_ynab_apply_csv_categories_safety.py"
+      - "README.md"
+      - "docs/README_YNAB_IMPORT.md"
+      - "CLAUDE.md"
+      - "docs/goals/ynab-repo-improvements/state.yaml"
+    verify:
+      - "python3 -m unittest discover -s tests"
+      - "python3 ynab_apply_csv_categories.py --help"
+    stop_if:
+      - "Implementation requires live YNAB credentials."
+      - "Need to rewrite matching or AI categorization logic."
+      - "Tests require network access."
+    receipt:
+      result: done
+      changed_files:
+        - "ynab_apply_csv_categories.py"
+        - "tests/test_ynab_apply_csv_categories_safety.py"
+        - "README.md"
+        - "docs/README_YNAB_IMPORT.md"
+      commands:
+        - cmd: "python3 -m unittest discover -s tests"
+          status: pass
+          notes: "Ran 41 tests; existing urllib3 LibreSSL warning and test dry-run output only."
+        - cmd: "python3 ynab_apply_csv_categories.py --help"
+          status: pass
+          notes: "Help shows dry-run default and --execute live-write flag."
+      summary: "ynab_apply_csv_categories.py now previews CSV and AI category updates by default; update_transaction requires --execute."
+
+  - id: T006
+    type: worker
+    assignee: Worker
+    status: done
+    reasoning_hint: default
+    objective: "Make ynab_unassign_hidden_categories.py default to dry-run and require an explicit execute flag before update_month_category can run, then document and test that boundary."
+    allowed_files:
+      - "ynab_unassign_hidden_categories.py"
+      - "tests/test_ynab_unassign_hidden_categories_safety.py"
+      - "README.md"
+      - "CLAUDE.md"
+      - "docs/goals/ynab-repo-improvements/state.yaml"
+    verify:
+      - "python3 -m unittest discover -s tests"
+      - "python3 ynab_unassign_hidden_categories.py --help"
+    stop_if:
+      - "Implementation requires live YNAB credentials."
+      - "Need to rewrite hidden-category detection logic."
+      - "Tests require network access."
+    receipt:
+      result: done
+      changed_files:
+        - "ynab_unassign_hidden_categories.py"
+        - "tests/test_ynab_unassign_hidden_categories_safety.py"
+        - "README.md"
+        - "CLAUDE.md"
+      commands:
+        - cmd: "python3 -m unittest discover -s tests"
+          status: pass
+          notes: "Ran 44 tests before the auto-categorize follow-up; existing urllib3 LibreSSL warning and test dry-run output only."
+        - cmd: "python3 ynab_unassign_hidden_categories.py --help"
+          status: pass
+          notes: "Help shows dry-run default and --execute live-write flag."
+      summary: "ynab_unassign_hidden_categories.py now previews budgeted-dollar moves by default; update_month_category requires --execute."
+
+  - id: T007
+    type: worker
+    assignee: Worker
+    status: done
+    reasoning_hint: default
+    objective: "Make ynab_auto_categorize.py default to dry-run and require an explicit execute flag before bulk or single category updates can run, then document and test that boundary."
+    allowed_files:
+      - "ynab_auto_categorize.py"
+      - "tests/test_ynab_auto_categorize_safety.py"
+      - "README.md"
+      - "CLAUDE.md"
+      - "docs/goals/ynab-repo-improvements/state.yaml"
+    verify:
+      - "python3 -m unittest discover -s tests"
+      - "python3 ynab_auto_categorize.py --help"
+    stop_if:
+      - "Implementation requires live YNAB credentials."
+      - "Need to rewrite AI categorization logic."
+      - "Tests require network access."
+    receipt:
+      result: done
+      changed_files:
+        - "ynab_auto_categorize.py"
+        - "tests/test_ynab_auto_categorize_safety.py"
+        - "README.md"
+        - "CLAUDE.md"
+      commands:
+        - cmd: "python3 -m unittest discover -s tests"
+          status: pass
+          notes: "Ran 47 tests; existing urllib3 LibreSSL warning and test dry-run/log output only."
+        - cmd: "python3 ynab_auto_categorize.py --help"
+          status: pass
+          notes: "Help shows dry-run default and --execute live-write flag."
+      summary: "ynab_auto_categorize.py now previews AI category updates by default; bulk_update_transactions and fallback update_transaction_category are only reached with --execute."
+
+  - id: T998
+    type: judge
+    assignee: Judge
+    status: done
+    reasoning_hint: default
+    objective: "Audit whether the cleanup-script guardrail plus importer guardrail completes the current safety tranche or requires another local live-write surface."
+    inputs:
+      - "T003 receipt"
+      - "T004 receipt"
+      - "T005 receipt"
+      - "T006 receipt"
+      - "T007 receipt"
+      - "Last verification"
+      - "Current dirty diff"
+    constraints:
+      - "Do not implement."
+      - "Reject completion if another obvious local live-write surface can be hardened without credentials."
+    expected_output:
+      - "complete | not_complete"
+      - "full_outcome_complete: true | false"
+      - "missing evidence"
+      - "next task if not complete"
+    receipt:
+      result: done
+      decision: "not_complete"
+      full_outcome_complete: false
+      summary: "The Python CLI live-write tranche is complete: importer, cleanup, CSV category application, auto-categorization, and hidden-category budget moves all default to dry-run and require --execute for live changes. The broader repo safety goal is not fully complete because web, extension, and MCP live-write surfaces still exist and need separate product-aware hardening."
+      completed_evidence:
+        - "T003 ynab_import.py create_transaction guard"
+        - "T004 ynab_cleanup_amazon.py delete/update guard"
+        - "T005 ynab_apply_csv_categories.py update guard"
+        - "T006 ynab_unassign_hidden_categories.py budget update guard"
+        - "T007 ynab_auto_categorize.py bulk/single update guard"
+        - "python3 -m unittest discover -s tests passed with 47 tests"
+      missing_evidence:
+        - "app/api/import/route.ts still has a live createTransaction path and needs a web UX/API decision."
+        - "extension/lib/ynab-client.ts still has PATCH/POST live-write paths and needs extension-flow hardening."
+        - "tools/ynab_mcp_server.py exposes updateTransactions intentionally, but should be reviewed for explicit approval/dry-run semantics."
+      next_task: T008
+
+  - id: T008
+    type: scout
+    assignee: Scout
+    status: active
+    reasoning_hint: default
+    objective: "Map the web, extension, and MCP live-write surfaces and recommend the next product-aware safety slice."
+    inputs:
+      - "app/api/import/route.ts"
+      - "app/page.tsx"
+      - "extension/lib/ynab-client.ts"
+      - "extension/popup"
+      - "tools/ynab_mcp_server.py"
+      - "T998 receipt"
+    constraints:
+      - "Read-only."
+      - "Do not change web or extension behavior before choosing a bounded UX/API safety design."
+      - "Prefer concrete file-path evidence and a small next Worker task."
+    expected_output:
+      - "Remaining live-write map"
+      - "Recommended next Worker objective"
+      - "allowed_files"
+      - "verify"
+      - "stop_if"
+    receipt: null
+
+checks:
+  dirty_fingerprint: "main ahead 4; untracked .agents/, apps/, docs/operations/, docs/superpowers/plans/2026-04-19-wealthsimple-balance-sync-mvp.md"
+  last_verification:
+    result: pass
+    task: T007
+    commands:
+      - "python3 -m unittest discover -s tests"
+      - "python3 ynab_auto_categorize.py --help"
+      - "python3 ynab_unassign_hidden_categories.py --help"

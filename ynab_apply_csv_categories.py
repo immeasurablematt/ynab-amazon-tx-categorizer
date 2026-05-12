@@ -9,6 +9,7 @@ import json
 import os
 import re
 import sys
+import argparse
 from datetime import date, datetime, timedelta
 
 try:
@@ -28,6 +29,24 @@ ACCESS_TOKEN = os.environ.get("YNAB_ACCESS_TOKEN")
 BUDGET_ID = os.environ.get("YNAB_BUDGET_ID")
 ACCOUNT_ID = os.environ.get("YNAB_ACCOUNT_ID")
 CSV_FILE = os.environ.get("YNAB_CSV_FILE", "amazon_ynab_ready.csv")
+
+
+def parse_args(argv=None):
+    parser = argparse.ArgumentParser(
+        description="Apply CSV-derived categories to matching YNAB transactions. Defaults to dry-run."
+    )
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Preview category updates without changing YNAB. This is the default.",
+    )
+    mode.add_argument(
+        "--execute",
+        action="store_true",
+        help="Apply category updates in YNAB. Required for live writes.",
+    )
+    return parser.parse_args(argv)
 
 
 def load_csv_lookup(csv_path: str) -> tuple[dict[tuple[str, int], str], dict[int, list[tuple[str, str]]]]:
@@ -117,7 +136,9 @@ Return ONLY JSON: {{"0": "CategoryName", "1": "..."}}. Use exact category names 
         return {}
 
 
-def main():
+def main(argv=None):
+    args = parse_args(argv)
+
     if not ACCESS_TOKEN or not BUDGET_ID or not ACCOUNT_ID:
         print("Error: Set YNAB_ACCESS_TOKEN, YNAB_BUDGET_ID, YNAB_ACCOUNT_ID in .env")
         sys.exit(1)
@@ -228,6 +249,11 @@ def main():
                 print(f"  Warning: Category '{new_cat}' not in budget, skipping")
                 continue
 
+            if not args.execute:
+                updated += 1
+                print(f"  Dry run: would update {date_str} ${amt/1000:.2f} -> {new_cat}")
+                continue
+
             existing = ExistingTransaction(
                 account_id=tx.account_id,
                 var_date=tx_date,
@@ -285,6 +311,10 @@ def main():
                 tx = tx_by_key.get(key)
                 if not tx:
                     continue
+                if not args.execute:
+                    ai_updated += 1
+                    print(f"  Dry run: would AI update {d} ${amt_milli/1000:.2f} -> {cat}")
+                    continue
                 ex = ExistingTransaction(
                     account_id=tx.account_id,
                     var_date=getattr(tx, "var_date") or getattr(tx, "date"),
@@ -305,9 +335,11 @@ def main():
                 except ApiException as e:
                     print(f"  Failed {tx.id}: {e}")
             updated += ai_updated
-            print(f"  AI categorized {ai_updated} more.")
+            action = "would categorize" if not args.execute else "categorized"
+            print(f"  AI {action} {ai_updated} more.")
 
-        print(f"\nTotal: Updated {updated} Uncategorized transaction(s).")
+        action = "Would update" if not args.execute else "Updated"
+        print(f"\nTotal: {action} {updated} Uncategorized transaction(s).")
         if no_match_count > 0:
             print(f"\n{no_match_count} Uncategorized had no CSV match.")
 

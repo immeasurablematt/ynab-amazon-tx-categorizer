@@ -50,13 +50,16 @@ python get_ynab_ids.py
 # 3) Put your transactions in transactions.csv (or set YNAB_CSV_FILE)
 # 4) Edit CATEGORY_MAPPING in ynab_import.py
 
-# Import
+# Dry-run first. This does not create transactions.
 YNAB_CSV_FILE=amazon_ynab_ready.csv python ynab_import.py
+
+# Live import. This creates transactions in YNAB.
+YNAB_CSV_FILE=amazon_ynab_ready.csv python ynab_import.py --execute
 ```
 
 **Other scripts:**
-- `ynab_apply_csv_categories.py` — Match existing YNAB transactions to your CSV and fix Uncategorized
-- `ynab_cleanup_amazon.py` — Remove duplicates and verify categories in the Amazon account
+- `ynab_apply_csv_categories.py` — Match existing YNAB transactions to your CSV and preview Uncategorized fixes; add `--execute` only after review
+- `ynab_cleanup_amazon.py` — Preview duplicate removal and category fixes in the Amazon account; add `--execute` only after review
 
 ## Security
 

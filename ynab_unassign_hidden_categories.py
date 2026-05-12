@@ -7,6 +7,7 @@ Uses YNAB_ACCESS_TOKEN, YNAB_BUDGET_ID from .env
 """
 import os
 import sys
+import argparse
 
 try:
     from dotenv import load_dotenv
@@ -24,7 +25,27 @@ ACCESS_TOKEN = os.environ.get("YNAB_ACCESS_TOKEN")
 BUDGET_ID = os.environ.get("YNAB_BUDGET_ID")
 
 
-def main():
+def parse_args(argv=None):
+    parser = argparse.ArgumentParser(
+        description="Unassign budgeted dollars from hidden YNAB categories. Defaults to dry-run."
+    )
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Preview budget changes without changing YNAB. This is the default.",
+    )
+    mode.add_argument(
+        "--execute",
+        action="store_true",
+        help="Apply budget changes in YNAB. Required for live writes.",
+    )
+    return parser.parse_args(argv)
+
+
+def main(argv=None):
+    args = parse_args(argv)
+
     if not ACCESS_TOKEN or not BUDGET_ID:
         print("Error: Set YNAB_ACCESS_TOKEN and YNAB_BUDGET_ID in .env")
         sys.exit(1)
@@ -96,23 +117,30 @@ def main():
             print("No budgeted dollars in hidden categories.")
             return
 
-        print(f"Unassigning budgeted dollars from {len(updates)} hidden category/month(s) to Ready to Assign...")
+        action = "Would unassign" if not args.execute else "Unassigning"
+        print(f"{action} budgeted dollars from {len(updates)} hidden category/month(s) to Ready to Assign...")
         print("-" * 60)
         updated = 0
         for month_str, cat_id, budgeted, cat_name in updates:
+            amt = budgeted / 1000
+            if not args.execute:
+                updated += 1
+                total_freed += budgeted
+                print(f"  Dry run: {month_str}  {cat_name}: ${amt:,.2f} -> Ready to Assign")
+                continue
             try:
                 categories_api.update_month_category(
                     BUDGET_ID, month_str, cat_id, PatchMonthCategoryWrapper(category=SaveMonthCategory(budgeted=0))
                 )
                 updated += 1
-                amt = budgeted / 1000
                 total_freed += budgeted
                 print(f"  {month_str}  {cat_name}: ${amt:,.2f} -> Ready to Assign")
             except ApiException as e:
                 print(f"  Failed {month_str} {cat_name}: {e}")
 
         print("-" * 60)
-        print(f"\nMoved ${total_freed / 1000:,.2f} to Ready to Assign across {updated} category/month(s).")
+        result = "Would move" if not args.execute else "Moved"
+        print(f"\n{result} ${total_freed / 1000:,.2f} to Ready to Assign across {updated} category/month(s).")
 
 
 if __name__ == "__main__":
