@@ -33,6 +33,7 @@ Requires `ANTHROPIC_API_KEY` in `.env` for AI categorization. Use `--no-ai` to s
 
 ## Documentation
 
+- [docs/PLAID_YNAB_BRIDGE.md](docs/PLAID_YNAB_BRIDGE.md) — local Plaid bank feed → proposal-first YNAB import
 - [docs/OPTION_A_INSTRUCTIONS.md](docs/OPTION_A_INSTRUCTIONS.md) — Amazon Chrome extension + normalizer workflow
 - [docs/README_YNAB_IMPORT.md](docs/README_YNAB_IMPORT.md) — Import setup and commands
 - [docs/README_YNAB_MCP.md](docs/README_YNAB_MCP.md) — Repo-local YNAB MCP server notes
