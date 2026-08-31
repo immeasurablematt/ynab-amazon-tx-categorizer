@@ -1,21 +1,38 @@
 import { NextResponse } from "next/server";
 import * as ynab from "ynab";
 import { ynabReadyToJson, dedupeYnabReadyRows } from "@/lib/normalize";
+import { getSession } from "@/lib/session";
+import { db } from "@/db";
+import { ynabConnections, importHistory, subscriptions } from "@/db/schema";
+import { eq } from "drizzle-orm";
+import { getYnabToken } from "@/lib/ynab-token";
 
-const DAYS_TOLERANCE = parseInt(process.env.YNAB_DUPLICATE_DAYS || "5", 10);
 const PAGE_SIZE = 500;
 
 export async function POST(request: Request) {
-  const token = process.env.YNAB_ACCESS_TOKEN;
-  const budgetId = process.env.YNAB_BUDGET_ID;
-  const accountId = process.env.YNAB_ACCOUNT_ID;
-
-  if (!token || !budgetId || !accountId) {
-    return NextResponse.json(
-      { error: "Missing YNAB_ACCESS_TOKEN, YNAB_BUDGET_ID, or YNAB_ACCOUNT_ID in environment" },
-      { status: 500 }
-    );
+  const session = await getSession();
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  const subscription = await db.query.subscriptions.findFirst({
+    where: eq(subscriptions.userId, session.user.id),
+  });
+  if (!subscription || !['trialing', 'active'].includes(subscription.status)) {
+    return NextResponse.json({ error: 'Subscription required' }, { status: 403 });
+  }
+
+  const connection = await db.query.ynabConnections.findFirst({
+    where: eq(ynabConnections.userId, session.user.id),
+  });
+  if (!connection) {
+    return NextResponse.json({ error: "Complete setup first" }, { status: 400 });
+  }
+
+  const token = await getYnabToken(session.user.id);
+  const budgetId = connection.budgetId;
+  const accountId = connection.accountId;
+  const DAYS_TOLERANCE = connection.duplicateDaysTolerance ?? 5;
 
   try {
     const formData = await request.formData();
@@ -42,6 +59,7 @@ export async function POST(request: Request) {
       });
     }
 
+    // Create a fresh API instance per-request (not reused across tenants)
     const api = new ynab.API(token);
 
     // Fetch categories
@@ -193,6 +211,14 @@ export async function POST(request: Request) {
 
     const created = createRes.data.transactions?.length ?? 0;
     const apiDuplicates = createRes.data.duplicate_import_ids?.length ?? 0;
+
+    // Record import history
+    await db.insert(importHistory).values({
+      userId: session.user.id,
+      connectionId: connection.id,
+      importedCount: created,
+      skippedCount: skippedDuplicates,
+    });
 
     return NextResponse.json({
       imported: created,
